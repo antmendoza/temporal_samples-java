@@ -22,8 +22,11 @@ package io.temporal.samples.asyncchild;
 import static org.junit.Assert.assertNotNull;
 
 import io.temporal.api.common.v1.WorkflowExecution;
+import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse;
+import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.testing.TestWorkflowRule;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -33,18 +36,29 @@ public class AsyncChildTest {
   public TestWorkflowRule testWorkflowRule =
       TestWorkflowRule.newBuilder()
           .setWorkflowTypes(ParentWorkflowImpl.class, ChildWorkflowImpl.class)
+          .setDoNotStart(true)
           .build();
 
   @Test
   public void testAsyncChildWorkflow() {
+    final WorkflowClient workflowClient = testWorkflowRule.getWorkflowClient();
+
+    testWorkflowRule
+        .getWorker()
+        .registerActivitiesImplementations(new ActivityImpl(workflowClient));
+
+    testWorkflowRule.getTestEnvironment().start();
+
     ParentWorkflow parentWorkflow =
-        testWorkflowRule
-            .getWorkflowClient()
-            .newWorkflowStub(
-                ParentWorkflow.class,
-                WorkflowOptions.newBuilder().setTaskQueue(testWorkflowRule.getTaskQueue()).build());
+        workflowClient.newWorkflowStub(
+            ParentWorkflow.class,
+            WorkflowOptions.newBuilder().setTaskQueue(testWorkflowRule.getTaskQueue()).build());
 
     WorkflowExecution childExecution = parentWorkflow.executeParent();
+
+    DescribeWorkflowExecutionResponse childDescribeWorkflowExecution = parentWorkflow.queryChild();
+
+    Assert.assertNotNull(childDescribeWorkflowExecution);
 
     assertNotNull(childExecution);
   }

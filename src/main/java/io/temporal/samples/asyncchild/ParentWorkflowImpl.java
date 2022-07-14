@@ -19,14 +19,19 @@
 
 package io.temporal.samples.asyncchild;
 
+import io.temporal.activity.ActivityOptions;
 import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.api.enums.v1.ParentClosePolicy;
+import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse;
 import io.temporal.workflow.Async;
 import io.temporal.workflow.ChildWorkflowOptions;
 import io.temporal.workflow.Promise;
 import io.temporal.workflow.Workflow;
+import java.time.Duration;
 
 public class ParentWorkflowImpl implements ParentWorkflow {
+  private DescribeWorkflowExecutionResponse childStatus;
+
   @Override
   public WorkflowExecution executeParent() {
 
@@ -46,6 +51,20 @@ public class ParentWorkflowImpl implements ParentWorkflow {
     Promise<WorkflowExecution> childExecution = Workflow.getWorkflowExecution(child);
     // Call .get on the promise. This will block until the child workflow starts execution (or start
     // fails)
-    return childExecution.get();
+    final WorkflowExecution childWorkflowExecution = childExecution.get();
+
+    Activity activity =
+        Workflow.newActivityStub(
+            Activity.class,
+            ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(2)).build());
+
+    this.childStatus = activity.queryChild(childWorkflowExecution.getWorkflowId());
+
+    return childWorkflowExecution;
+  }
+
+  @Override
+  public DescribeWorkflowExecutionResponse queryChild() {
+    return this.childStatus;
   }
 }
