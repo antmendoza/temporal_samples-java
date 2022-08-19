@@ -90,7 +90,7 @@ public class HelloChildContinue {
       for (int i = 0; i < 10; i++) {
         child.composeGreeting(i);
         if (i == 5) {
-          // throw new NullPointerException("");
+          throw new NullPointerException("");
         }
       }
 
