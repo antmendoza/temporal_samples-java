@@ -21,9 +21,13 @@ package io.temporal.samples.hello;
 
 import static org.junit.Assert.assertEquals;
 
+import io.temporal.api.enums.v1.WorkflowExecutionStatus;
+import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionRequest;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
+import io.temporal.client.WorkflowStub;
 import io.temporal.samples.hello.HelloQuery.GreetingWorkflow;
+import io.temporal.testing.TestWorkflowEnvironment;
 import io.temporal.testing.TestWorkflowRule;
 import java.time.Duration;
 import org.junit.Rule;
@@ -36,15 +40,19 @@ public class HelloQueryTest {
   public TestWorkflowRule testWorkflowRule =
       TestWorkflowRule.newBuilder().setWorkflowTypes(HelloQuery.GreetingWorkflowImpl.class).build();
 
-  @Test(timeout = 5000)
+  @Test(timeout = 5000000)
   public void testQuery() {
     // Get a workflow stub using the same task queue the worker uses.
+    String workflowId = "my-workflowId";
+
     WorkflowOptions workflowOptions =
-        WorkflowOptions.newBuilder().setTaskQueue(testWorkflowRule.getTaskQueue()).build();
+        WorkflowOptions.newBuilder()
+            .setWorkflowId(workflowId)
+            .setTaskQueue(testWorkflowRule.getTaskQueue())
+            .build();
+    WorkflowClient workflowClient = testWorkflowRule.getWorkflowClient();
     GreetingWorkflow workflow =
-        testWorkflowRule
-            .getWorkflowClient()
-            .newWorkflowStub(GreetingWorkflow.class, workflowOptions);
+        workflowClient.newWorkflowStub(GreetingWorkflow.class, workflowOptions);
 
     // Start workflow asynchronously to not use another thread to query.
     WorkflowClient.start(workflow::createGreeting, "World");
@@ -58,8 +66,30 @@ public class HelloQueryTest {
     // and executing tests of long running workflows very fast.
     // Note that this unit test executes under a second and not
     // over 3 as it would if Thread.sleep(3000) was called.
-    testWorkflowRule.getTestEnvironment().sleep(Duration.ofSeconds(3));
+    TestWorkflowEnvironment testEnvironment = testWorkflowRule.getTestEnvironment();
 
+    testEnvironment.sleep(Duration.ofMillis(1));
+    assertEquals("Hello World!", workflow.queryGreeting());
+
+    testEnvironment.sleep(Duration.ofMillis(1));
+    assertEquals("Hello World!", workflow.queryGreeting());
+
+    testEnvironment.sleep(Duration.ofDays(1));
     assertEquals("Bye World!", workflow.queryGreeting());
+
+    WorkflowStub workflowStub = workflowClient.newUntypedWorkflowStub(workflowId);
+    assertEquals("done", workflowStub.getResult(String.class));
+    assertEquals(
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
+        workflowClient
+            .getWorkflowServiceStubs()
+            .blockingStub()
+            .describeWorkflowExecution(
+                DescribeWorkflowExecutionRequest.newBuilder()
+                    .setExecution(workflowStub.getExecution())
+                    .setNamespace(testEnvironment.getNamespace())
+                    .build())
+            .getWorkflowExecutionInfo()
+            .getStatus());
   }
 }

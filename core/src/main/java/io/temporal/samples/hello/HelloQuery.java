@@ -53,7 +53,7 @@ public class HelloQuery {
   public interface GreetingWorkflow {
 
     @WorkflowMethod
-    void createGreeting(String name);
+    String createGreeting(String name);
 
     // Workflow query method. Used to return our greeting as a query value
     @QueryMethod
@@ -67,7 +67,7 @@ public class HelloQuery {
     private String greeting;
 
     @Override
-    public void createGreeting(String name) {
+    public String createGreeting(String name) {
       // We set the value of greeting to "Hello" first.
       greeting = "Hello " + name + "!";
       /*
@@ -78,10 +78,15 @@ public class HelloQuery {
        * use Workflow.sleep or Workflow.currentTimeMillis rather than the
        * equivalent standard Java ones.
        */
-      Workflow.sleep(Duration.ofSeconds(2));
+      // Workflow.sleep(Duration.ofSeconds(2));
+
+      String a = null;
+      Workflow.await(Duration.ofSeconds(2), () -> a != null);
 
       // after two seconds we change the value of our greeting to "Bye"
       greeting = "Bye " + name + "!";
+
+      return "done";
     }
 
     // our workflow query method returns the greeting
