@@ -103,7 +103,12 @@ public class HelloActivity {
     @Override
     public String getGreeting(String name) {
       // This is a blocking call that returns only after the activity has completed.
-      return activities.composeGreeting("Hello", name);
+
+      activities.composeGreeting("Hello", name);
+
+      String hello = activities.composeGreeting("Hello", name);
+
+      return hello;
     }
   }
 
