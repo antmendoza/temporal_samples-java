@@ -19,6 +19,7 @@
 
 package io.antmendoza.samples.entityworkflow;
 
+import io.temporal.workflow.QueryMethod;
 import io.temporal.workflow.SignalMethod;
 import io.temporal.workflow.WorkflowInterface;
 import io.temporal.workflow.WorkflowMethod;
@@ -37,4 +38,13 @@ public interface EntityWorkflow {
 
   @SignalMethod
   void exit();
+
+  @SignalMethod
+  void otherSignal(String value);
+
+  @SignalMethod
+  void updateEntityValue(Value value);
+
+  @QueryMethod
+  Value getEntityValue();
 }

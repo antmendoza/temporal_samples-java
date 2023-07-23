@@ -22,6 +22,7 @@ package io.antmendoza.samples.entityworkflow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
 
+import io.antmendoza.samples.Util;
 import io.temporal.api.enums.v1.WorkflowExecutionStatus;
 import io.temporal.api.workflow.v1.WorkflowExecutionInfo;
 import io.temporal.api.workflowservice.v1.ListClosedWorkflowExecutionsRequest;
@@ -43,10 +44,10 @@ public class EntityWorkflowTest {
           .setDoNotStart(true)
           .build();
 
-  @Test
-  public void testImpl() {
+  ActivityEntityWorkflow activityEntityWorkflow = mock(ActivityEntityWorkflow.class);
 
-    ActivityEntityWorkflow activityEntityWorkflow = mock(ActivityEntityWorkflow.class);
+  @Test
+  public void testDoXAndYImpl() {
 
     testWorkflowRule.getWorker().registerActivitiesImplementations(activityEntityWorkflow);
     testWorkflowRule.getTestEnvironment().start();
@@ -70,7 +71,7 @@ public class EntityWorkflowTest {
 
     workflow.doX("doX");
 
-    sleep(200);
+    Util.sleep(200);
 
     assertEquals(
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
@@ -79,7 +80,8 @@ public class EntityWorkflowTest {
     verify(activityEntityWorkflow, times(1)).doX();
 
     workflow.doY("doY");
-    sleep(200);
+
+    Util.sleep(200);
 
     assertEquals(
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
@@ -89,7 +91,7 @@ public class EntityWorkflowTest {
 
     workflow.exit();
 
-    sleep(200);
+    Util.sleep(200);
 
     assertEquals(
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
@@ -98,12 +100,46 @@ public class EntityWorkflowTest {
     testWorkflowRule.getTestEnvironment().shutdown();
   }
 
-  private static void sleep(int sleepMillisecond) {
-    try {
-      Thread.sleep(sleepMillisecond);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
+  @Test
+  public void testContinueAsNew() {
+
+    testWorkflowRule.getWorker().registerActivitiesImplementations(activityEntityWorkflow);
+    testWorkflowRule.getTestEnvironment().start();
+
+    // Get a workflow stub using the same task queue the worker uses.
+    String workflowId = "test_execute_workflow";
+    final WorkflowOptions.Builder builder =
+        WorkflowOptions.newBuilder()
+            .setWorkflowId(workflowId)
+            .setTaskQueue(testWorkflowRule.getTaskQueue());
+
+    WorkflowClient workflowClient = testWorkflowRule.getWorkflowClient();
+    final EntityWorkflow workflow =
+        workflowClient.newWorkflowStub(EntityWorkflow.class, builder.build());
+
+    WorkflowClient.start(workflow::execute, new EntityInput(new Value("my-id")));
+
+    assertEquals(
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
+        getListOpenExecutions().get(0).getStatus());
+
+    for (int a = 0; a < 10; a++) {
+      workflow.doX("doX");
     }
+
+    assertEquals(
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
+        getListOpenExecutions().get(0).getStatus());
+
+    workflow.exit();
+
+    Util.sleep(200);
+
+    assertEquals(
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW,
+        getListClosedExecutions().get(0).getStatus());
+
+    testWorkflowRule.getTestEnvironment().shutdown();
   }
 
   @NotNull

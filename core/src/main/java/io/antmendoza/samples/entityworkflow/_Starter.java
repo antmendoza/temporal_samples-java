@@ -21,12 +21,12 @@ package io.antmendoza.samples.entityworkflow;
 
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
+import io.temporal.client.WorkflowStub;
 import io.temporal.serviceclient.WorkflowServiceStubs;
-import io.temporal.worker.Worker;
-import io.temporal.worker.WorkerFactory;
+import java.time.Duration;
 
 /** Sample Temporal Workflow Definition that executes a single Activity. */
-public class Starter {
+public class _Starter {
 
   // Define the task queue name
   static final String TASK_QUEUE = "HelloActivityTaskQueue";
@@ -40,33 +40,34 @@ public class Starter {
 
     WorkflowClient client = WorkflowClient.newInstance(service);
 
-    WorkerFactory factory = WorkerFactory.newInstance(client);
-
-    Worker worker = factory.newWorker(TASK_QUEUE);
-
-    worker.registerWorkflowImplementationTypes(EntityWorkflowImpl.class);
-
-    // worker.registerActivitiesImplementations(new GreetingActivitiesImpl());
-
-    factory.start();
-
     // Create the workflow client stub. It is used to start our workflow execution.
     EntityWorkflow workflow =
         client.newWorkflowStub(
             EntityWorkflow.class,
             WorkflowOptions.newBuilder()
                 .setWorkflowId(WORKFLOW_ID)
+                .setWorkflowRunTimeout(Duration.ofSeconds(20))
                 .setTaskQueue(TASK_QUEUE)
                 .build());
 
-    /*
-     * Execute our workflow and wait for it to complete. The call to our getGreeting method is
-     * synchronous.
-     *
-     * See {@link io.temporal.samples.hello.HelloSignal} for an example of starting workflow
-     * without waiting synchronously for its result.
-     */
-    workflow.execute(new EntityInput());
+    WorkflowClient.start(workflow::execute, new EntityInput());
+
+    int value = 0;
+    WorkflowStub workflowStub = client.newUntypedWorkflowStub(WORKFLOW_ID);
+    for (int a = 0; a < 50; a++) {
+      workflow.otherSignal("" + ++value);
+      workflow.otherSignal("" + ++value);
+      workflow.otherSignal("" + ++value);
+    }
+
+    workflow.updateEntityValue(new Value("updateEntityValue"));
+
+    workflow.exit();
+
+    // Wait for the execution to finish
+    Value result = workflowStub.getResult(Value.class);
+
+    System.out.println("result :  " + result.getId());
 
     // Display workflow execution results
     System.exit(0);

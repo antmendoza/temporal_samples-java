@@ -27,4 +27,6 @@ public interface ActivityEntityWorkflow {
   void doX();
 
   void doY();
+
+  void other(String value);
 }
