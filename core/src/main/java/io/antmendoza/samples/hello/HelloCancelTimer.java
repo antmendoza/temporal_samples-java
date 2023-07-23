@@ -1,5 +1,3 @@
-package io.temporal.samples.hello;
-
 /*
  *  Copyright (c) 2020 Temporal Technologies, Inc. All Rights Reserved
  *
@@ -19,6 +17,8 @@ package io.temporal.samples.hello;
  *  permissions and limitations under the License.
  */
 
+package io.antmendoza.samples.hello;
+
 import io.temporal.activity.*;
 import io.temporal.client.ActivityCompletionException;
 import io.temporal.client.WorkflowClient;
@@ -35,8 +35,6 @@ import io.temporal.workflow.*;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** Sample Temporal Workflow Definition that executes a single Activity. */
 public class HelloCancelTimer {
@@ -79,7 +77,7 @@ public class HelloCancelTimer {
      */
     worker.registerWorkflowImplementationTypes(GreetingWorkflowImpl.class);
 
-    /**
+    /*
      * Register our Activity Types with the Worker. Since Activities are stateless and thread-safe,
      * the Activity Type is a shared instance.
      */
@@ -186,8 +184,6 @@ public class HelloCancelTimer {
                 .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(1).build())
                 .build());
 
-    private boolean activitiesExecuted;
-
     @Override
     public String getGreeting(String name) {
 
@@ -207,7 +203,7 @@ public class HelloCancelTimer {
 
       cancellationScope.run();
 
-      String result = Promise.anyOf(results).get();
+      Promise.anyOf(results).get();
 
       cancellationScope.cancel();
 
@@ -235,7 +231,6 @@ public class HelloCancelTimer {
 
   /** Simple activity implementation, that concatenates two strings. */
   static class GreetingActivitiesImpl implements GreetingActivities {
-    private static final Logger log = LoggerFactory.getLogger(GreetingActivitiesImpl.class);
 
     @Override
     public String startAndWaitSecondsWithHeartbeat(int sleepSeconds) {

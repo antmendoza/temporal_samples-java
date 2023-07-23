@@ -17,36 +17,32 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.hello;
+package io.antmendoza.samples.hello;
 
-import static io.temporal.internal.sync.WorkflowInternal.DEFAULT_VERSION;
-
-import io.temporal.activity.ActivityInterface;
-import io.temporal.activity.ActivityMethod;
-import io.temporal.activity.ActivityOptions;
+import io.temporal.activity.*;
+import io.temporal.client.ActivityCompletionException;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
+import io.temporal.client.WorkflowStub;
 import io.temporal.common.RetryOptions;
-import io.temporal.failure.ApplicationFailure;
+import io.temporal.failure.CanceledFailure;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
 import io.temporal.worker.WorkerOptions;
-import io.temporal.workflow.Workflow;
-import io.temporal.workflow.WorkflowInterface;
-import io.temporal.workflow.WorkflowMethod;
+import io.temporal.workflow.*;
 import java.time.Duration;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Sample Temporal Workflow Definition that executes a single Activity. */
-public class HelloDoNotRetryWorkflowActivity {
+public class HelloChaseSequentially2 {
 
   // Define the task queue name
-  static final String TASK_QUEUE = "HelloDoNotRetryWorkflowActivity";
+  static final String TASK_QUEUE = "HelloActivityTaskQueue";
 
   // Define our workflow unique id
-  static final String WORKFLOW_ID = "HelloDoNotRetryWorkflowActivity";
+  static final String WORKFLOW_ID = "HelloActivityWorkflow";
 
   /**
    * With our Workflow and Activities defined, we can now start execution. The main method starts
@@ -80,7 +76,7 @@ public class HelloDoNotRetryWorkflowActivity {
      */
     worker.registerWorkflowImplementationTypes(GreetingWorkflowImpl.class);
 
-    /**
+    /*
      * Register our Activity Types with the Worker. Since Activities are stateless and thread-safe,
      * the Activity Type is a shared instance.
      */
@@ -97,28 +93,29 @@ public class HelloDoNotRetryWorkflowActivity {
         client.newWorkflowStub(
             GreetingWorkflow.class,
             WorkflowOptions.newBuilder()
-                // .setWorkflowRunTimeout(Duration.ofMinutes(2))
                 .setWorkflowId(WORKFLOW_ID)
-                .setRetryOptions(
-                    RetryOptions.newBuilder()
-                        .setMaximumAttempts(2)
-                        .setDoNotRetry(NullPointerException.class.getSimpleName())
-                        .build())
                 .setTaskQueue(TASK_QUEUE)
                 .build());
 
-    /*
-     * Execute our workflow and wait for it to complete. The call to our getGreeting method is
-     * synchronous.
-     *
-     * See {@link io.temporal.samples.hello.HelloSignal} for an example of starting workflow
-     * without waiting synchronously for its result.
-     */
-    String greeting = workflow.getGreeting("World");
+    WorkflowClient.start(workflow::getGreeting, "world");
+
+    sleep(2000);
+
+    sleep(10000);
+
+    String result = WorkflowStub.fromTyped(workflow).getResult(String.class);
 
     // Display workflow execution results
-    System.out.println(greeting);
+    System.out.println("result " + result);
     System.exit(0);
+  }
+
+  private static void sleep(int l) {
+    try {
+      Thread.sleep(l);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   /**
@@ -128,8 +125,8 @@ public class HelloDoNotRetryWorkflowActivity {
    * code, network calls, database operations, etc. Those things should be handled by the
    * Activities.
    *
-   * @see WorkflowInterface
-   * @see WorkflowMethod
+   * @see io.temporal.workflow.WorkflowInterface
+   * @see io.temporal.workflow.WorkflowMethod
    */
   @WorkflowInterface
   public interface GreetingWorkflow {
@@ -149,15 +146,18 @@ public class HelloDoNotRetryWorkflowActivity {
    *
    * <p>Annotating Activity Definition methods with @ActivityMethod is optional.
    *
-   * @see ActivityInterface
-   * @see ActivityMethod
+   * @see io.temporal.activity.ActivityInterface
+   * @see io.temporal.activity.ActivityMethod
    */
   @ActivityInterface
   public interface GreetingActivities {
 
     // Define your activity method which can be called during workflow execution
-    @ActivityMethod(name = "greet")
-    String composeGreeting(String greeting, String name);
+    @ActivityMethod
+    String startAndWaitSecondsWithHeartbeat(int sleepSeconds);
+
+    @ActivityMethod
+    String other(int sleepSeconds);
   }
 
   // Define the workflow implementation which implements our getGreeting workflow method.
@@ -177,77 +177,80 @@ public class HelloDoNotRetryWorkflowActivity {
         Workflow.newActivityStub(
             GreetingActivities.class,
             ActivityOptions.newBuilder()
-                .setHeartbeatTimeout(Duration.ofSeconds(3))
-                .setStartToCloseTimeout(Duration.ofMinutes(40))
+                .setStartToCloseTimeout(Duration.ofMinutes(2))
+                .setCancellationType(ActivityCancellationType.WAIT_CANCELLATION_COMPLETED)
+                .setHeartbeatTimeout(Duration.ofSeconds(2))
+                .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(1).build())
                 .build());
+
+    private boolean activitiesExecuted;
 
     @Override
     public String getGreeting(String name) {
-      // This is a blocking call that returns only after the activity has completed.
-      String hello = activities.composeGreeting("Helloee", name);
 
-      String b = null;
-      // System.out.println(b.toString());
+      final List<Promise<Void>> promises = new ArrayList<>();
 
-      ApplicationFailure.newFailure("", NullPointerException.class.getSimpleName());
+      CancellationScope scope =
+          Workflow.newCancellationScope(
+              () -> {
+                promises.add(
+                    Async.procedure(
+                        () -> {
+                          activities.startAndWaitSecondsWithHeartbeat(3);
+                          activities.startAndWaitSecondsWithHeartbeat(3);
+                          activities.startAndWaitSecondsWithHeartbeat(3);
+                          activitiesExecuted = true;
+                        }));
+              });
 
-      int version = Workflow.getVersion("test", Workflow.DEFAULT_VERSION, 1);
+      scope.run();
 
-      if (version == DEFAULT_VERSION) {
-        activities.composeGreeting("Bye", name);
+      promises.add(Workflow.newTimer(Duration.ofSeconds(4)));
+
+      try {
+        Promise.anyOf(promises).get();
+      } catch (Exception e) {
+
+        e.printStackTrace();
+
+        // CanceledFailure is thrown by the timer if timer
+        if (!(e.getCause() instanceof CanceledFailure)) {
+          // We might want to fail the workflow or something.
+          //  throw e;
+        }
       }
 
-      int version2 = Workflow.getVersion("version2", Workflow.DEFAULT_VERSION, 2);
-
-      if (version2 == 2) {
-        activities.composeGreeting("Bye version2", name);
-      }
-
-      int version44 = Workflow.getVersion("test44", Workflow.DEFAULT_VERSION, 10);
-
-      if (version44 == 10) {
-        activities.composeGreeting("Bye", name);
-      }
-
-      Workflow.sleep(Duration.ofMinutes(2));
-
-      return hello;
+      return "done";
     }
   }
 
   /** Simple activity implementation, that concatenates two strings. */
   static class GreetingActivitiesImpl implements GreetingActivities {
-    private static final Logger log = LoggerFactory.getLogger(GreetingActivitiesImpl.class);
 
     @Override
-    public String composeGreeting(String greeting, String name) {
-      log.info("Composing greeting...");
-      //
-      //      for (int i = 0; i < 200; i++) {
-      //
-      //        if (i < 5 || i > 10) {
-      //          try {
-      //
-      //            System.out.println("Thread: " + Thread.currentThread().getId() + " heartbeat ...
-      // ");
-      //            Activity.getExecutionContext().heartbeat("");
-      //
-      //          } catch (Exception e) {
-      //            e.printStackTrace();
-      //          }
-      //        } else {
-      //          System.out.println("Thread: " + Thread.currentThread().getId() + " Skip heartbeat
-      // ... ");
-      //        }
-      //
-      //        try {
-      //          Thread.sleep(1000);
-      //        } catch (InterruptedException e) {
-      //          throw new RuntimeException(e);
-      //        }
-      //      }
+    public String startAndWaitSecondsWithHeartbeat(int sleepSeconds) {
 
-      return greeting + " " + name + "!";
+      try {
+        for (int a = 0; a < sleepSeconds; a++) {
+          try {
+            Thread.sleep(1000);
+          } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+          }
+          System.out.println("hearbeat .... ");
+          Activity.getExecutionContext().heartbeat("");
+        }
+      } catch (ActivityCompletionException e) {
+        System.out.println("activity cancelled: " + e);
+        throw e;
+      }
+
+      return "time sleep " + sleepSeconds;
+    }
+
+    @Override
+    public String other(int sleepSeconds) {
+      return this.startAndWaitSecondsWithHeartbeat(sleepSeconds);
     }
   }
 }

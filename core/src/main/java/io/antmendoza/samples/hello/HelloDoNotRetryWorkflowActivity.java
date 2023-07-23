@@ -1,5 +1,3 @@
-package io.temporal.samples.hello;
-
 /*
  *  Copyright (c) 2020 Temporal Technologies, Inc. All Rights Reserved
  *
@@ -19,33 +17,36 @@ package io.temporal.samples.hello;
  *  permissions and limitations under the License.
  */
 
-import io.temporal.activity.*;
-import io.temporal.client.ActivityCompletionException;
+package io.antmendoza.samples.hello;
+
+import static io.temporal.internal.sync.WorkflowInternal.DEFAULT_VERSION;
+
+import io.temporal.activity.ActivityInterface;
+import io.temporal.activity.ActivityMethod;
+import io.temporal.activity.ActivityOptions;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
-import io.temporal.client.WorkflowStub;
 import io.temporal.common.RetryOptions;
-import io.temporal.failure.ActivityFailure;
-import io.temporal.failure.CanceledFailure;
+import io.temporal.failure.ApplicationFailure;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
 import io.temporal.worker.WorkerOptions;
-import io.temporal.workflow.*;
+import io.temporal.workflow.Workflow;
+import io.temporal.workflow.WorkflowInterface;
+import io.temporal.workflow.WorkflowMethod;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Sample Temporal Workflow Definition that executes a single Activity. */
-public class HelloChaseParallel {
+public class HelloDoNotRetryWorkflowActivity {
 
   // Define the task queue name
-  static final String TASK_QUEUE = "HelloActivityTaskQueue";
+  static final String TASK_QUEUE = "HelloDoNotRetryWorkflowActivity";
 
   // Define our workflow unique id
-  static final String WORKFLOW_ID = "HelloActivityWorkflow";
+  static final String WORKFLOW_ID = "HelloDoNotRetryWorkflowActivity";
 
   /**
    * With our Workflow and Activities defined, we can now start execution. The main method starts
@@ -79,7 +80,7 @@ public class HelloChaseParallel {
      */
     worker.registerWorkflowImplementationTypes(GreetingWorkflowImpl.class);
 
-    /**
+    /*
      * Register our Activity Types with the Worker. Since Activities are stateless and thread-safe,
      * the Activity Type is a shared instance.
      */
@@ -96,26 +97,28 @@ public class HelloChaseParallel {
         client.newWorkflowStub(
             GreetingWorkflow.class,
             WorkflowOptions.newBuilder()
+                // .setWorkflowRunTimeout(Duration.ofMinutes(2))
                 .setWorkflowId(WORKFLOW_ID)
+                .setRetryOptions(
+                    RetryOptions.newBuilder()
+                        .setMaximumAttempts(2)
+                        .setDoNotRetry(NullPointerException.class.getSimpleName())
+                        .build())
                 .setTaskQueue(TASK_QUEUE)
                 .build());
 
-    WorkflowClient.start(workflow::getGreeting, "world");
-
-    sleep(2000);
-    WorkflowStub.fromTyped(workflow).cancel();
+    /*
+     * Execute our workflow and wait for it to complete. The call to our getGreeting method is
+     * synchronous.
+     *
+     * See {@link io.temporal.samples.hello.HelloSignal} for an example of starting workflow
+     * without waiting synchronously for its result.
+     */
+    String greeting = workflow.getGreeting("World");
 
     // Display workflow execution results
-    // ystem.out.println("result " + result);
-    // System.exit(0);
-  }
-
-  private static void sleep(int l) {
-    try {
-      Thread.sleep(l);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
+    System.out.println(greeting);
+    System.exit(0);
   }
 
   /**
@@ -153,11 +156,8 @@ public class HelloChaseParallel {
   public interface GreetingActivities {
 
     // Define your activity method which can be called during workflow execution
-    @ActivityMethod
-    String startAndWaitSecondsWithHeartbeat(int sleepSeconds);
-
-    @ActivityMethod
-    String other(int sleepSeconds);
+    @ActivityMethod(name = "greet")
+    String composeGreeting(String greeting, String name);
   }
 
   // Define the workflow implementation which implements our getGreeting workflow method.
@@ -177,51 +177,38 @@ public class HelloChaseParallel {
         Workflow.newActivityStub(
             GreetingActivities.class,
             ActivityOptions.newBuilder()
-                .setStartToCloseTimeout(Duration.ofMinutes(2))
-                .setCancellationType(ActivityCancellationType.WAIT_CANCELLATION_COMPLETED)
-                .setHeartbeatTimeout(Duration.ofSeconds(2))
-                .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(1).build())
+                .setHeartbeatTimeout(Duration.ofSeconds(3))
+                .setStartToCloseTimeout(Duration.ofMinutes(40))
                 .build());
-
-    private boolean activitiesExecuted;
 
     @Override
     public String getGreeting(String name) {
+      // This is a blocking call that returns only after the activity has completed.
+      String hello = activities.composeGreeting("Helloee", name);
 
-      final List<Promise> promises = new ArrayList<>();
+      ApplicationFailure.newFailure("", NullPointerException.class.getSimpleName());
 
-      CancellationScope scope =
-          Workflow.newCancellationScope(
-              () -> {
-                promises.add(
-                    Async.procedure(
-                        () -> {
-                          activities.startAndWaitSecondsWithHeartbeat(3);
-                          activities.startAndWaitSecondsWithHeartbeat(3);
-                          activities.startAndWaitSecondsWithHeartbeat(3);
-                          activitiesExecuted = true;
-                        }));
-              });
+      int version = Workflow.getVersion("test", Workflow.DEFAULT_VERSION, 1);
 
-      scope.run();
-
-      boolean processExecuted = Workflow.await(Duration.ofSeconds(4), () -> activitiesExecuted);
-
-      if (!processExecuted) {
-        System.out.println("Cancelling scope....");
-        scope.cancel();
+      if (version == DEFAULT_VERSION) {
+        activities.composeGreeting("Bye", name);
       }
 
-      try {
-        promises.get(0).get();
-      } catch (ActivityFailure e) {
-        if (!(e.getCause() instanceof CanceledFailure)) {
-          // We might want to fail the workflow or something.
-          throw e;
-        }
+      int version2 = Workflow.getVersion("version2", Workflow.DEFAULT_VERSION, 2);
+
+      if (version2 == 2) {
+        activities.composeGreeting("Bye version2", name);
       }
 
-      return "done";
+      int version44 = Workflow.getVersion("test44", Workflow.DEFAULT_VERSION, 10);
+
+      if (version44 == 10) {
+        activities.composeGreeting("Bye", name);
+      }
+
+      Workflow.sleep(Duration.ofMinutes(2));
+
+      return hello;
     }
   }
 
@@ -230,29 +217,34 @@ public class HelloChaseParallel {
     private static final Logger log = LoggerFactory.getLogger(GreetingActivitiesImpl.class);
 
     @Override
-    public String startAndWaitSecondsWithHeartbeat(int sleepSeconds) {
+    public String composeGreeting(String greeting, String name) {
+      log.info("Composing greeting...");
+      //
+      //      for (int i = 0; i < 200; i++) {
+      //
+      //        if (i < 5 || i > 10) {
+      //          try {
+      //
+      //            System.out.println("Thread: " + Thread.currentThread().getId() + " heartbeat ...
+      // ");
+      //            Activity.getExecutionContext().heartbeat("");
+      //
+      //          } catch (Exception e) {
+      //            e.printStackTrace();
+      //          }
+      //        } else {
+      //          System.out.println("Thread: " + Thread.currentThread().getId() + " Skip heartbeat
+      // ... ");
+      //        }
+      //
+      //        try {
+      //          Thread.sleep(1000);
+      //        } catch (InterruptedException e) {
+      //          throw new RuntimeException(e);
+      //        }
+      //      }
 
-      try {
-        for (int a = 0; a < sleepSeconds; a++) {
-          try {
-            Thread.sleep(1000);
-          } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-          }
-          System.out.println("hearbeat .... ");
-          Activity.getExecutionContext().heartbeat("");
-        }
-      } catch (ActivityCompletionException e) {
-        System.out.println("activity cancelled: " + e);
-        throw e;
-      }
-
-      return "time sleep " + sleepSeconds;
-    }
-
-    @Override
-    public String other(int sleepSeconds) {
-      return this.startAndWaitSecondsWithHeartbeat(sleepSeconds);
+      return greeting + " " + name + "!";
     }
   }
 }

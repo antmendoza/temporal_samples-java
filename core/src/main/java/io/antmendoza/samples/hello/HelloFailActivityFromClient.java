@@ -17,7 +17,7 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.hello.forceActivityRetry;
+package io.antmendoza.samples.hello;
 
 import io.temporal.activity.Activity;
 import io.temporal.activity.ActivityInterface;
@@ -154,8 +154,6 @@ public class HelloFailActivityFromClient {
             Optional.empty(),
             pendingActivityId,
             new RuntimeException("Forcing retry from client"));
-
-    String greeting = workflow.getGreeting("World");
 
     // Display workflow execution results
     // System.out.println(greeting);

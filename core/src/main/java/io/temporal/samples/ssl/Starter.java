@@ -55,10 +55,7 @@ public class Starter {
     WorkflowServiceStubs service =
         WorkflowServiceStubs.newServiceStubs(
             WorkflowServiceStubsOptions.newBuilder()
-                .setSslContext(
-                    SimpleSslContextBuilder.forPKCS8(clientCert, clientKey)
-                        .setUseInsecureTrustManager(true)
-                        .build())
+                .setSslContext(SimpleSslContextBuilder.forPKCS8(clientCert, clientKey).build())
                 .setTarget(targetEndpoint)
                 .build());
 

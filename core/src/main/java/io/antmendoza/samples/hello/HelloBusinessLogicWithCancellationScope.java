@@ -1,5 +1,3 @@
-package io.temporal.samples.hello;
-
 /*
  *  Copyright (c) 2020 Temporal Technologies, Inc. All Rights Reserved
  *
@@ -19,6 +17,8 @@ package io.temporal.samples.hello;
  *  permissions and limitations under the License.
  */
 
+package io.antmendoza.samples.hello;
+
 import io.temporal.activity.*;
 import io.temporal.client.ActivityCompletionException;
 import io.temporal.client.WorkflowClient;
@@ -35,17 +35,16 @@ import io.temporal.workflow.*;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Sample Temporal Workflow Definition that executes a single Activity. */
-public class HelloChaseSequentially1 {
+public class HelloBusinessLogicWithCancellationScope {
 
   // Define the task queue name
-  static final String TASK_QUEUE = "HelloActivityTaskQueue";
+  static final String TASK_QUEUE = "HelloHelloBusinessLogicTimer";
 
   // Define our workflow unique id
-  static final String WORKFLOW_ID = "HelloActivityWorkflow";
+  static final String WORKFLOW_ID = "HelloBusinessLogicTimer";
 
   /**
    * With our Workflow and Activities defined, we can now start execution. The main method starts
@@ -79,7 +78,7 @@ public class HelloChaseSequentially1 {
      */
     worker.registerWorkflowImplementationTypes(GreetingWorkflowImpl.class);
 
-    /**
+    /*
      * Register our Activity Types with the Worker. Since Activities are stateless and thread-safe,
      * the Activity Type is a shared instance.
      */
@@ -186,43 +185,57 @@ public class HelloChaseSequentially1 {
                 .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(1).build())
                 .build());
 
-    private boolean activitiesExecuted;
-
     @Override
     public String getGreeting(String name) {
 
-      final List<Promise> promises = new ArrayList<>();
+      List<Promise<String>> results = new ArrayList<>();
 
-      CancellationScope scope =
+      AtomicBoolean activityCompleted = new AtomicBoolean(false);
+
+      CancellationScope cancellationScope =
           Workflow.newCancellationScope(
               () -> {
-                promises.add(
-                    Async.procedure(
-                        () -> {
-                          activities.startAndWaitSecondsWithHeartbeat(3);
-                          activities.startAndWaitSecondsWithHeartbeat(3);
-                          activities.startAndWaitSecondsWithHeartbeat(3);
-                          activitiesExecuted = true;
-                        }));
+                Promise<String> function =
+                    Async.function(activities::startAndWaitSecondsWithHeartbeat, 6)
+                        .thenApply(
+                            result -> {
+                              activityCompleted.set(true);
+                              return result;
+                            });
+                results.add(function);
               });
 
-      scope.run();
+      cancellationScope.run();
 
-      boolean processExecuted = Workflow.await(Duration.ofSeconds(4), () -> activitiesExecuted);
+      boolean activityExecuted =
+          Workflow.await(Duration.ofSeconds(3), () -> activityCompleted.get());
 
-      if (!processExecuted) {
-        System.out.println("Cancelling scope....");
-        scope.cancel();
+      if (!activityExecuted) {
+        System.out.println("cancelling scope");
+        cancellationScope.cancel();
       }
 
-      try {
-        promises.get(0).get();
-      } catch (ActivityFailure e) {
-        if (!(e.getCause() instanceof CanceledFailure)) {
-          // We might want to fail the workflow or something.
+      for (Promise<String> activityResult : results) {
+        try {
+
+          activityResult.get(); // this should block
+
+          activityResult.getFailure(); // we can check if this is not null
+        } catch (ActivityFailure e) {
+          System.out.println("ActivityFailure, scope cancelled");
+          System.out.println(e.getCause());
+
+          if (!(e.getCause() instanceof CanceledFailure)) {
+            throw e;
+          }
           throw e;
+          // This workflow won't be marked as cancelled
+          // because
+          // throw new CanceledFailure("My cancelled");
         }
       }
+
+      System.out.println("Before return...");
 
       return "done";
     }
@@ -230,7 +243,6 @@ public class HelloChaseSequentially1 {
 
   /** Simple activity implementation, that concatenates two strings. */
   static class GreetingActivitiesImpl implements GreetingActivities {
-    private static final Logger log = LoggerFactory.getLogger(GreetingActivitiesImpl.class);
 
     @Override
     public String startAndWaitSecondsWithHeartbeat(int sleepSeconds) {
@@ -246,7 +258,7 @@ public class HelloChaseSequentially1 {
           Activity.getExecutionContext().heartbeat("");
         }
       } catch (ActivityCompletionException e) {
-        System.out.println("activity cancelled: " + e);
+        System.out.println("Printed from inside: activity cancelled: " + e);
         throw e;
       }
 

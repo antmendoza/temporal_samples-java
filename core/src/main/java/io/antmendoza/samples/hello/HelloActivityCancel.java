@@ -17,13 +17,16 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.hello;
+package io.antmendoza.samples.hello;
 
 import io.temporal.activity.ActivityInterface;
 import io.temporal.activity.ActivityMethod;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
+import io.temporal.common.RetryOptions;
+import io.temporal.failure.ApplicationFailure;
+import io.temporal.failure.CanceledFailure;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
@@ -35,7 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Sample Temporal Workflow Definition that executes a single Activity. */
-public class HelloActivity {
+public class HelloActivityCancel {
 
   // Define the task queue name
   static final String TASK_QUEUE = "HelloActivityTaskQueue";
@@ -50,8 +53,8 @@ public class HelloActivity {
    * code, network calls, database operations, etc. Those things should be handled by the
    * Activities.
    *
-   * @see io.temporal.workflow.WorkflowInterface
-   * @see io.temporal.workflow.WorkflowMethod
+   * @see WorkflowInterface
+   * @see WorkflowMethod
    */
   @WorkflowInterface
   public interface GreetingWorkflow {
@@ -71,8 +74,8 @@ public class HelloActivity {
    *
    * <p>Annotating Activity Definition methods with @ActivityMethod is optional.
    *
-   * @see io.temporal.activity.ActivityInterface
-   * @see io.temporal.activity.ActivityMethod
+   * @see ActivityInterface
+   * @see ActivityMethod
    */
   @ActivityInterface
   public interface GreetingActivities {
@@ -98,12 +101,25 @@ public class HelloActivity {
     private final GreetingActivities activities =
         Workflow.newActivityStub(
             GreetingActivities.class,
-            ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(2)).build());
+            ActivityOptions.newBuilder()
+                .setRetryOptions(RetryOptions.newBuilder().setDoNotRetry().build())
+                .setStartToCloseTimeout(Duration.ofSeconds(2))
+                .build());
 
     @Override
     public String getGreeting(String name) {
       // This is a blocking call that returns only after the activity has completed.
-      return activities.composeGreeting("Hello", name);
+
+      try {
+
+        activities.composeGreeting("Hello", name);
+
+      } catch (Exception e) {
+        System.out.println("Cancelled  " + e.getCause());
+      }
+      String hello = activities.composeGreeting("Hello", name);
+
+      return hello;
     }
   }
 
@@ -114,7 +130,10 @@ public class HelloActivity {
     @Override
     public String composeGreeting(String greeting, String name) {
       log.info("Composing greeting...");
-      return greeting + " " + name + "!";
+
+      throw ApplicationFailure.newNonRetryableFailureWithCause(
+          ",", "", new CanceledFailure("Cancelled"));
+      //      return greeting + " " + name + "!";
     }
   }
 
@@ -178,10 +197,18 @@ public class HelloActivity {
      * See {@link io.temporal.samples.hello.HelloSignal} for an example of starting workflow
      * without waiting synchronously for its result.
      */
-    String greeting = workflow.getGreeting("World");
+
+    WorkflowClient.start(workflow::getGreeting, "World");
+    client.newUntypedWorkflowStub(WORKFLOW_ID).cancel();
+
+    try {
+      Thread.sleep(2000);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
 
     // Display workflow execution results
-    System.out.println(greeting);
+    // System.out.println(greeting);
     System.exit(0);
   }
 }

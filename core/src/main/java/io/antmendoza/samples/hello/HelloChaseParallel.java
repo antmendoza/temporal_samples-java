@@ -1,5 +1,3 @@
-package io.temporal.samples.hello;
-
 /*
  *  Copyright (c) 2020 Temporal Technologies, Inc. All Rights Reserved
  *
@@ -19,12 +17,15 @@ package io.temporal.samples.hello;
  *  permissions and limitations under the License.
  */
 
+package io.antmendoza.samples.hello;
+
 import io.temporal.activity.*;
 import io.temporal.client.ActivityCompletionException;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
 import io.temporal.common.RetryOptions;
+import io.temporal.failure.ActivityFailure;
 import io.temporal.failure.CanceledFailure;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.Worker;
@@ -34,11 +35,9 @@ import io.temporal.workflow.*;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** Sample Temporal Workflow Definition that executes a single Activity. */
-public class HelloChaseSequentially2 {
+public class HelloChaseParallel {
 
   // Define the task queue name
   static final String TASK_QUEUE = "HelloActivityTaskQueue";
@@ -78,7 +77,7 @@ public class HelloChaseSequentially2 {
      */
     worker.registerWorkflowImplementationTypes(GreetingWorkflowImpl.class);
 
-    /**
+    /*
      * Register our Activity Types with the Worker. Since Activities are stateless and thread-safe,
      * the Activity Type is a shared instance.
      */
@@ -102,14 +101,11 @@ public class HelloChaseSequentially2 {
     WorkflowClient.start(workflow::getGreeting, "world");
 
     sleep(2000);
-
-    sleep(10000);
-
-    String result = WorkflowStub.fromTyped(workflow).getResult(String.class);
+    WorkflowStub.fromTyped(workflow).cancel();
 
     // Display workflow execution results
-    System.out.println("result " + result);
-    System.exit(0);
+    // ystem.out.println("result " + result);
+    // System.exit(0);
   }
 
   private static void sleep(int l) {
@@ -127,8 +123,8 @@ public class HelloChaseSequentially2 {
    * code, network calls, database operations, etc. Those things should be handled by the
    * Activities.
    *
-   * @see io.temporal.workflow.WorkflowInterface
-   * @see io.temporal.workflow.WorkflowMethod
+   * @see WorkflowInterface
+   * @see WorkflowMethod
    */
   @WorkflowInterface
   public interface GreetingWorkflow {
@@ -148,8 +144,8 @@ public class HelloChaseSequentially2 {
    *
    * <p>Annotating Activity Definition methods with @ActivityMethod is optional.
    *
-   * @see io.temporal.activity.ActivityInterface
-   * @see io.temporal.activity.ActivityMethod
+   * @see ActivityInterface
+   * @see ActivityMethod
    */
   @ActivityInterface
   public interface GreetingActivities {
@@ -190,7 +186,7 @@ public class HelloChaseSequentially2 {
     @Override
     public String getGreeting(String name) {
 
-      final List<Promise<Void>> promises = new ArrayList<>();
+      final List<Promise> promises = new ArrayList<>();
 
       CancellationScope scope =
           Workflow.newCancellationScope(
@@ -207,18 +203,19 @@ public class HelloChaseSequentially2 {
 
       scope.run();
 
-      promises.add(Workflow.newTimer(Duration.ofSeconds(4)));
+      boolean processExecuted = Workflow.await(Duration.ofSeconds(4), () -> activitiesExecuted);
+
+      if (!processExecuted) {
+        System.out.println("Cancelling scope....");
+        scope.cancel();
+      }
 
       try {
-        Promise.anyOf(promises).get();
-      } catch (Exception e) {
-
-        e.printStackTrace();
-
-        // CanceledFailure is thrown by the timer if timer
+        promises.get(0).get();
+      } catch (ActivityFailure e) {
         if (!(e.getCause() instanceof CanceledFailure)) {
           // We might want to fail the workflow or something.
-          //  throw e;
+          throw e;
         }
       }
 
@@ -228,7 +225,6 @@ public class HelloChaseSequentially2 {
 
   /** Simple activity implementation, that concatenates two strings. */
   static class GreetingActivitiesImpl implements GreetingActivities {
-    private static final Logger log = LoggerFactory.getLogger(GreetingActivitiesImpl.class);
 
     @Override
     public String startAndWaitSecondsWithHeartbeat(int sleepSeconds) {

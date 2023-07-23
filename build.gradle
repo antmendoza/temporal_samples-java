@@ -17,7 +17,7 @@ subprojects {
     }
 
     compileJava {
-        //options.compilerArgs << "-Werror"
+        options.compilerArgs << "-Werror"
     }
 
     ext {
