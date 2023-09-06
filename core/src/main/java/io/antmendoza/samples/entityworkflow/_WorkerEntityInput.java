@@ -24,7 +24,6 @@ import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
 
-/** Sample Temporal Workflow Definition that executes a single Activity. */
 public class _WorkerEntityInput {
 
   // Define the task queue name

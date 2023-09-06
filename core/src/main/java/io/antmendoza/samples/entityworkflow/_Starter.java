@@ -25,7 +25,6 @@ import io.temporal.client.WorkflowStub;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import java.time.Duration;
 
-/** Sample Temporal Workflow Definition that executes a single Activity. */
 public class _Starter {
 
   // Define the task queue name
@@ -62,7 +61,7 @@ public class _Starter {
 
     workflow.updateEntityValue(new Value("updateEntityValue"));
 
-    workflow.exit();
+    // workflow.exit();
 
     // Wait for the execution to finish
     Value result = workflowStub.getResult(Value.class);

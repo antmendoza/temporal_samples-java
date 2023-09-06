@@ -19,34 +19,28 @@
 
 package io.antmendoza.samples.hello;
 
-import io.temporal.activity.Activity;
 import io.temporal.activity.ActivityInterface;
 import io.temporal.activity.ActivityMethod;
 import io.temporal.activity.ActivityOptions;
-import io.temporal.api.common.v1.WorkflowExecution;
-import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionRequest;
-import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
-import io.temporal.worker.WorkerOptions;
 import io.temporal.workflow.Workflow;
 import io.temporal.workflow.WorkflowInterface;
 import io.temporal.workflow.WorkflowMethod;
 import java.time.Duration;
-import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class HelloFailActivityFromClient {
+public class HelloRunForever {
 
   // Define the task queue name
-  static final String TASK_QUEUE = "HelloActivityTaskQueue";
+  static final String TASK_QUEUE = "HelloRunForever-";
 
   // Define our workflow unique id
-  static final String WORKFLOW_ID = "HelloActivityWorkflow";
+  static final String WORKFLOW_ID = "HelloRunForever";
 
   @WorkflowInterface
   public interface GreetingWorkflow {
@@ -63,17 +57,20 @@ public class HelloFailActivityFromClient {
     String composeGreeting(String greeting, String name);
   }
 
+  // Define the workflow implementation which implements our getGreeting workflow method.
   public static class GreetingWorkflowImpl implements GreetingWorkflow {
 
     private final GreetingActivities activities =
         Workflow.newActivityStub(
             GreetingActivities.class,
-            ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(20)).build());
+            ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(2)).build());
 
     @Override
     public String getGreeting(String name) {
-
       // This is a blocking call that returns only after the activity has completed.
+
+      Workflow.sleep(Duration.ofMinutes(4));
+
       return activities.composeGreeting("Hello", name);
     }
   }
@@ -84,21 +81,15 @@ public class HelloFailActivityFromClient {
 
     @Override
     public String composeGreeting(String greeting, String name) {
-
-      log.info(
-          "Activity.getExecutionContext().getInfo().getAttempt() =..."
-              + Activity.getExecutionContext().getInfo().getAttempt());
-
-      try {
-        Thread.sleep(10_000);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
-
+      log.info("Composing greeting...");
       return greeting + " " + name + "!";
     }
   }
 
+  /**
+   * With our Workflow and Activities defined, we can now start execution. The main method starts
+   * the worker and then the workflow.
+   */
   public static void main(String[] args) {
 
     WorkflowServiceStubs service = WorkflowServiceStubs.newLocalServiceStubs();
@@ -107,7 +98,7 @@ public class HelloFailActivityFromClient {
 
     WorkerFactory factory = WorkerFactory.newInstance(client);
 
-    Worker worker = factory.newWorker(TASK_QUEUE, WorkerOptions.newBuilder().build());
+    Worker worker = factory.newWorker(TASK_QUEUE);
 
     worker.registerWorkflowImplementationTypes(GreetingWorkflowImpl.class);
 
@@ -124,38 +115,17 @@ public class HelloFailActivityFromClient {
                 .setTaskQueue(TASK_QUEUE)
                 .build());
 
-    WorkflowExecution workflowExecution = WorkflowClient.start(workflow::getGreeting, "World");
-
-    try {
-      Thread.sleep(5_000);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
-
-    // Activity is sleeping for 10 seconds, we wait 5 seconds before trigger manual activity
-    // failure
-    DescribeWorkflowExecutionResponse describeWorkflowExecution =
-        client
-            .getWorkflowServiceStubs()
-            .blockingStub()
-            .describeWorkflowExecution(
-                DescribeWorkflowExecutionRequest.newBuilder()
-                    .setExecution(workflowExecution)
-                    .setNamespace("default")
-                    .build());
-
-    String pendingActivityId = describeWorkflowExecution.getPendingActivities(0).getActivityId();
-
-    client
-        .newActivityCompletionClient()
-        .completeExceptionally(
-            workflowExecution.getWorkflowId(),
-            Optional.empty(),
-            pendingActivityId,
-            new RuntimeException("Forcing retry from client"));
+    /*
+     * Execute our workflow and wait for it to complete. The call to our getGreeting method is
+     * synchronous.
+     *
+     * See {@link io.temporal.samples.hello.HelloSignal} for an example of starting workflow
+     * without waiting synchronously for its result.
+     */
+    String greeting = workflow.getGreeting("World");
 
     // Display workflow execution results
-    // System.out.println(greeting);
-    // System.exit(0);
+    System.out.println(greeting);
+    System.exit(0);
   }
 }

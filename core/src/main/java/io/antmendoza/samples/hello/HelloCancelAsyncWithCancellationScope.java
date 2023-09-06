@@ -20,11 +20,11 @@
 package io.antmendoza.samples.hello;
 
 import io.temporal.activity.*;
-import io.temporal.client.ActivityCompletionException;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
-import io.temporal.client.WorkflowStub;
 import io.temporal.common.RetryOptions;
+import io.temporal.failure.ActivityFailure;
+import io.temporal.failure.ApplicationFailure;
 import io.temporal.failure.CanceledFailure;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.Worker;
@@ -32,21 +32,16 @@ import io.temporal.worker.WorkerFactory;
 import io.temporal.worker.WorkerOptions;
 import io.temporal.workflow.*;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
-public class HelloChaseSequentially2 {
+public class HelloCancelAsyncWithCancellationScope {
 
   // Define the task queue name
-  static final String TASK_QUEUE = "HelloActivityTaskQueue";
+  static final String TASK_QUEUE = "HelloCancelAsyncWithCancellationScope";
 
   // Define our workflow unique id
-  static final String WORKFLOW_ID = "HelloActivityWorkflow";
+  static final String WORKFLOW_ID = "HelloCancelAsyncWithCancellationScope";
 
-  /**
-   * With our Workflow and Activities defined, we can now start execution. The main method starts
-   * the worker and then the workflow.
-   */
   public static void main(String[] args) {
 
     WorkflowServiceStubs service = WorkflowServiceStubs.newLocalServiceStubs();
@@ -70,19 +65,18 @@ public class HelloChaseSequentially2 {
             WorkflowOptions.newBuilder()
                 .setWorkflowId(WORKFLOW_ID)
                 .setTaskQueue(TASK_QUEUE)
+                .setWorkflowRunTimeout(Duration.ofSeconds(60))
                 .build());
 
     WorkflowClient.start(workflow::getGreeting, "world");
 
-    sleep(2000);
-
     sleep(10000);
 
-    String result = WorkflowStub.fromTyped(workflow).getResult(String.class);
+    workflow.signalCancel();
 
     // Display workflow execution results
-    System.out.println("result " + result);
-    System.exit(0);
+    // ystem.out.println("result " + result);
+    // System.exit(0);
   }
 
   private static void sleep(int l) {
@@ -93,42 +87,21 @@ public class HelloChaseSequentially2 {
     }
   }
 
-  /**
-   * The Workflow Definition's Interface must contain one method annotated with @WorkflowMethod.
-   *
-   * <p>Workflow Definitions should not contain any heavyweight computations, non-deterministic
-   * code, network calls, database operations, etc. Those things should be handled by the
-   * Activities.
-   *
-   * @see io.temporal.workflow.WorkflowInterface
-   * @see io.temporal.workflow.WorkflowMethod
-   */
   @WorkflowInterface
   public interface GreetingWorkflow {
 
     @WorkflowMethod
     String getGreeting(String name);
+
+    @SignalMethod
+    void signalCancel();
   }
 
-  /**
-   * This is the Activity Definition's Interface. Activities are building blocks of any Temporal
-   * Workflow and contain any business logic that could perform long running computation, network
-   * calls, etc.
-   *
-   * <p>Annotating Activity Definition methods with @ActivityMethod is optional.
-   *
-   * @see io.temporal.activity.ActivityInterface
-   * @see io.temporal.activity.ActivityMethod
-   */
   @ActivityInterface
   public interface GreetingActivities {
 
-    // Define your activity method which can be called during workflow execution
     @ActivityMethod
-    String startAndWaitSecondsWithHeartbeat(int sleepSeconds);
-
-    @ActivityMethod
-    String other(int sleepSeconds);
+    String startAndThrowIfAttemptsLessThan(int sleepSeconds);
   }
 
   // Define the workflow implementation which implements our getGreeting workflow method.
@@ -140,78 +113,59 @@ public class HelloChaseSequentially2 {
             ActivityOptions.newBuilder()
                 .setStartToCloseTimeout(Duration.ofMinutes(2))
                 .setCancellationType(ActivityCancellationType.WAIT_CANCELLATION_COMPLETED)
-                .setHeartbeatTimeout(Duration.ofSeconds(2))
-                .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(1).build())
+                .setRetryOptions(
+                    RetryOptions.newBuilder()
+                        .setInitialInterval(Duration.ofSeconds(20))
+                        .setBackoffCoefficient(1)
+                        .build())
+                // .setHeartbeatTimeout(Duration.ofSeconds(2))
+                // .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(1).build())
                 .build());
 
-    private boolean activitiesExecuted;
+    CancellationScope scope = null;
 
     @Override
     public String getGreeting(String name) {
 
-      final List<Promise<Void>> promises = new ArrayList<>();
+      AtomicReference<Promise> jobMonitor = new AtomicReference<>();
 
-      CancellationScope scope =
+      this.scope =
           Workflow.newCancellationScope(
               () -> {
-                promises.add(
-                    Async.procedure(
-                        () -> {
-                          activities.startAndWaitSecondsWithHeartbeat(3);
-                          activities.startAndWaitSecondsWithHeartbeat(3);
-                          activities.startAndWaitSecondsWithHeartbeat(3);
-                          activitiesExecuted = true;
-                        }));
+                jobMonitor.set(Async.function(activities::startAndThrowIfAttemptsLessThan, 3));
               });
 
-      scope.run();
-
-      promises.add(Workflow.newTimer(Duration.ofSeconds(4)));
+      this.scope.run();
 
       try {
-        Promise.anyOf(promises).get();
-      } catch (Exception e) {
-
-        e.printStackTrace();
-
-        // CanceledFailure is thrown by the timer if timer
-        if (!(e.getCause() instanceof CanceledFailure)) {
-          // We might want to fail the workflow or something.
-          //  throw e;
+        jobMonitor.get().get();
+      } catch (ActivityFailure e) {
+        System.out.println("getCause ... " + e.getCause());
+        if (e.getCause() instanceof CanceledFailure) {
+          // Activity cancelled
         }
       }
 
       return "done";
     }
+
+    @Override
+    public void signalCancel() {
+      this.scope.cancel();
+    }
   }
 
-  /** Simple activity implementation, that concatenates two strings. */
   static class GreetingActivitiesImpl implements GreetingActivities {
 
     @Override
-    public String startAndWaitSecondsWithHeartbeat(int sleepSeconds) {
+    public String startAndThrowIfAttemptsLessThan(int sleepSeconds) {
 
-      try {
-        for (int a = 0; a < sleepSeconds; a++) {
-          try {
-            Thread.sleep(1000);
-          } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-          }
-          System.out.println("hearbeat .... ");
-          Activity.getExecutionContext().heartbeat("");
-        }
-      } catch (ActivityCompletionException e) {
-        System.out.println("activity cancelled: " + e);
-        throw e;
+      // Activity.getExecutionContext().heartbeat("");
+      if (Activity.getExecutionContext().getInfo().getAttempt() < 3) {
+        throw ApplicationFailure.newFailure("", "");
       }
 
       return "time sleep " + sleepSeconds;
-    }
-
-    @Override
-    public String other(int sleepSeconds) {
-      return this.startAndWaitSecondsWithHeartbeat(sleepSeconds);
     }
   }
 }

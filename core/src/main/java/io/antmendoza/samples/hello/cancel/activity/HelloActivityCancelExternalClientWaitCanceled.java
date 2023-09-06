@@ -17,36 +17,30 @@
  *  permissions and limitations under the License.
  */
 
-package io.antmendoza.samples.hello;
+package io.antmendoza.samples.hello.cancel.activity;
 
-import io.temporal.activity.Activity;
-import io.temporal.activity.ActivityInterface;
-import io.temporal.activity.ActivityMethod;
-import io.temporal.activity.ActivityOptions;
-import io.temporal.api.common.v1.WorkflowExecution;
-import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionRequest;
-import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse;
+import io.temporal.activity.*;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
+import io.temporal.common.RetryOptions;
+import io.temporal.failure.CanceledFailure;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
-import io.temporal.worker.WorkerOptions;
 import io.temporal.workflow.Workflow;
 import io.temporal.workflow.WorkflowInterface;
 import io.temporal.workflow.WorkflowMethod;
 import java.time.Duration;
-import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class HelloFailActivityFromClient {
+public class HelloActivityCancelExternalClientWaitCanceled {
 
   // Define the task queue name
-  static final String TASK_QUEUE = "HelloActivityTaskQueue";
+  static final String TASK_QUEUE = "HelloActivityCancelToRetry";
 
   // Define our workflow unique id
-  static final String WORKFLOW_ID = "HelloActivityWorkflow";
+  static final String WORKFLOW_ID = "HelloActivityCancelToRetry";
 
   @WorkflowInterface
   public interface GreetingWorkflow {
@@ -63,18 +57,34 @@ public class HelloFailActivityFromClient {
     String composeGreeting(String greeting, String name);
   }
 
+  // Define the workflow implementation which implements our getGreeting workflow method.
   public static class GreetingWorkflowImpl implements GreetingWorkflow {
 
     private final GreetingActivities activities =
         Workflow.newActivityStub(
             GreetingActivities.class,
-            ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(20)).build());
+            ActivityOptions.newBuilder()
+                .setRetryOptions(RetryOptions.newBuilder().setDoNotRetry().build())
+                .setCancellationType(ActivityCancellationType.WAIT_CANCELLATION_COMPLETED)
+                .setStartToCloseTimeout(Duration.ofSeconds(20))
+                .setHeartbeatTimeout(Duration.ofSeconds(10))
+                .build());
 
     @Override
     public String getGreeting(String name) {
-
       // This is a blocking call that returns only after the activity has completed.
-      return activities.composeGreeting("Hello", name);
+
+      try {
+
+        activities.composeGreeting("Hello", name);
+
+      } catch (Exception e) {
+
+        System.out.println("Cancelled >>  " + ((CanceledFailure) e.getCause()));
+      }
+      // String hello = activities.composeGreeting("Hello", name);
+
+      return "hello";
     }
   }
 
@@ -84,21 +94,39 @@ public class HelloFailActivityFromClient {
 
     @Override
     public String composeGreeting(String greeting, String name) {
-
-      log.info(
-          "Activity.getExecutionContext().getInfo().getAttempt() =..."
-              + Activity.getExecutionContext().getInfo().getAttempt());
+      log.info("Composing greeting...");
 
       try {
-        Thread.sleep(10_000);
+        for (int i = 0; i < 10; i++) {
+          Activity.getExecutionContext().heartbeat("");
+          sleep(2000);
+        }
+
+      } catch (Exception e) {
+        log.info(">>> dentro del activity: " + e);
+        // throw e;
+      }
+
+      sleep(2000);
+
+      log.info("Composing greeting...return ");
+
+      return null;
+    }
+
+    private static void sleep(int l) {
+      try {
+        Thread.sleep(l);
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
       }
-
-      return greeting + " " + name + "!";
     }
   }
 
+  /**
+   * With our Workflow and Activities defined, we can now start execution. The main method starts
+   * the worker and then the workflow.
+   */
   public static void main(String[] args) {
 
     WorkflowServiceStubs service = WorkflowServiceStubs.newLocalServiceStubs();
@@ -107,7 +135,7 @@ public class HelloFailActivityFromClient {
 
     WorkerFactory factory = WorkerFactory.newInstance(client);
 
-    Worker worker = factory.newWorker(TASK_QUEUE, WorkerOptions.newBuilder().build());
+    Worker worker = factory.newWorker(TASK_QUEUE);
 
     worker.registerWorkflowImplementationTypes(GreetingWorkflowImpl.class);
 
@@ -124,35 +152,15 @@ public class HelloFailActivityFromClient {
                 .setTaskQueue(TASK_QUEUE)
                 .build());
 
-    WorkflowExecution workflowExecution = WorkflowClient.start(workflow::getGreeting, "World");
+    WorkflowClient.start(workflow::getGreeting, "World");
 
     try {
-      Thread.sleep(5_000);
+      Thread.sleep(5000);
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }
 
-    // Activity is sleeping for 10 seconds, we wait 5 seconds before trigger manual activity
-    // failure
-    DescribeWorkflowExecutionResponse describeWorkflowExecution =
-        client
-            .getWorkflowServiceStubs()
-            .blockingStub()
-            .describeWorkflowExecution(
-                DescribeWorkflowExecutionRequest.newBuilder()
-                    .setExecution(workflowExecution)
-                    .setNamespace("default")
-                    .build());
-
-    String pendingActivityId = describeWorkflowExecution.getPendingActivities(0).getActivityId();
-
-    client
-        .newActivityCompletionClient()
-        .completeExceptionally(
-            workflowExecution.getWorkflowId(),
-            Optional.empty(),
-            pendingActivityId,
-            new RuntimeException("Forcing retry from client"));
+    client.newUntypedWorkflowStub(WORKFLOW_ID).cancel();
 
     // Display workflow execution results
     // System.out.println(greeting);

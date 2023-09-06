@@ -19,46 +19,40 @@
 
 package io.antmendoza.samples.hello;
 
-import io.temporal.activity.Activity;
 import io.temporal.activity.ActivityInterface;
 import io.temporal.activity.ActivityMethod;
 import io.temporal.activity.ActivityOptions;
-import io.temporal.api.common.v1.WorkflowExecution;
-import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionRequest;
-import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
+import io.temporal.common.RetryOptions;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
-import io.temporal.worker.WorkerOptions;
-import io.temporal.workflow.Workflow;
-import io.temporal.workflow.WorkflowInterface;
-import io.temporal.workflow.WorkflowMethod;
+import io.temporal.workflow.*;
 import java.time.Duration;
-import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class HelloFailActivityFromClient {
+public class HelloActivitySignalNoCancel {
 
-  // Define the task queue name
-  static final String TASK_QUEUE = "HelloActivityTaskQueue";
+  static final String TASK_QUEUE = "HelloActivityCancelToRetry";
 
-  // Define our workflow unique id
-  static final String WORKFLOW_ID = "HelloActivityWorkflow";
+  static final String WORKFLOW_ID = "HelloActivityCancelToRetry";
 
   @WorkflowInterface
   public interface GreetingWorkflow {
 
     @WorkflowMethod
     String getGreeting(String name);
+
+    @SignalMethod
+    void signal();
   }
 
   @ActivityInterface
   public interface GreetingActivities {
 
-    // Define your activity method which can be called during workflow execution
     @ActivityMethod(name = "greet")
     String composeGreeting(String greeting, String name);
   }
@@ -68,34 +62,49 @@ public class HelloFailActivityFromClient {
     private final GreetingActivities activities =
         Workflow.newActivityStub(
             GreetingActivities.class,
-            ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(20)).build());
+            ActivityOptions.newBuilder()
+                .setRetryOptions(RetryOptions.newBuilder().setDoNotRetry().build())
+                // .setCancellationType(ActivityCancellationType.ABANDON)
+                .setStartToCloseTimeout(Duration.ofSeconds(20))
+                .build());
+
+    boolean signaled;
 
     @Override
     public String getGreeting(String name) {
 
-      // This is a blocking call that returns only after the activity has completed.
-      return activities.composeGreeting("Hello", name);
+      AtomicBoolean activitiesExecuted = new AtomicBoolean(false);
+
+      Async.procedure(
+          () -> {
+            activities.composeGreeting("Hello", name);
+            activitiesExecuted.set(true);
+          });
+
+      Workflow.await(() -> activitiesExecuted.get() || signaled);
+
+      return "hello";
+    }
+
+    @Override
+    public void signal() {
+      this.signaled = true;
     }
   }
 
-  /** Simple activity implementation, that concatenates two strings. */
   static class GreetingActivitiesImpl implements GreetingActivities {
     private static final Logger log = LoggerFactory.getLogger(GreetingActivitiesImpl.class);
 
     @Override
     public String composeGreeting(String greeting, String name) {
-
-      log.info(
-          "Activity.getExecutionContext().getInfo().getAttempt() =..."
-              + Activity.getExecutionContext().getInfo().getAttempt());
+      log.info("Composing greeting...");
 
       try {
-        Thread.sleep(10_000);
+        Thread.sleep(15000);
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
       }
-
-      return greeting + " " + name + "!";
+      return null;
     }
   }
 
@@ -107,7 +116,7 @@ public class HelloFailActivityFromClient {
 
     WorkerFactory factory = WorkerFactory.newInstance(client);
 
-    Worker worker = factory.newWorker(TASK_QUEUE, WorkerOptions.newBuilder().build());
+    Worker worker = factory.newWorker(TASK_QUEUE);
 
     worker.registerWorkflowImplementationTypes(GreetingWorkflowImpl.class);
 
@@ -124,38 +133,14 @@ public class HelloFailActivityFromClient {
                 .setTaskQueue(TASK_QUEUE)
                 .build());
 
-    WorkflowExecution workflowExecution = WorkflowClient.start(workflow::getGreeting, "World");
+    WorkflowClient.start(workflow::getGreeting, "World");
 
     try {
-      Thread.sleep(5_000);
+      Thread.sleep(5000);
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }
 
-    // Activity is sleeping for 10 seconds, we wait 5 seconds before trigger manual activity
-    // failure
-    DescribeWorkflowExecutionResponse describeWorkflowExecution =
-        client
-            .getWorkflowServiceStubs()
-            .blockingStub()
-            .describeWorkflowExecution(
-                DescribeWorkflowExecutionRequest.newBuilder()
-                    .setExecution(workflowExecution)
-                    .setNamespace("default")
-                    .build());
-
-    String pendingActivityId = describeWorkflowExecution.getPendingActivities(0).getActivityId();
-
-    client
-        .newActivityCompletionClient()
-        .completeExceptionally(
-            workflowExecution.getWorkflowId(),
-            Optional.empty(),
-            pendingActivityId,
-            new RuntimeException("Forcing retry from client"));
-
-    // Display workflow execution results
-    // System.out.println(greeting);
-    // System.exit(0);
+    workflow.signal();
   }
 }
