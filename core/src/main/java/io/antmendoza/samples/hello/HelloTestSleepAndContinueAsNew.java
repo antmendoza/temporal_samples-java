@@ -30,10 +30,9 @@ import io.temporal.worker.WorkerFactory;
 import io.temporal.workflow.Workflow;
 import io.temporal.workflow.WorkflowInterface;
 import io.temporal.workflow.WorkflowMethod;
+import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.time.Duration;
 
 /** Sample Temporal Workflow Definition that executes a single Activity. */
 public class HelloTestSleepAndContinueAsNew {

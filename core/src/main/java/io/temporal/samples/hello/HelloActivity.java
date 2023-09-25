@@ -27,6 +27,7 @@ import io.temporal.client.WorkflowOptions;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
+import io.temporal.workflow.QueryMethod;
 import io.temporal.workflow.Workflow;
 import io.temporal.workflow.WorkflowInterface;
 import io.temporal.workflow.WorkflowMethod;
@@ -62,6 +63,10 @@ public class HelloActivity {
      */
     @WorkflowMethod
     String getGreeting(String name);
+
+    // Define your activity method which can be called during workflow execution
+    @QueryMethod
+    String getValue();
   }
 
   /**
@@ -105,6 +110,11 @@ public class HelloActivity {
       // This is a blocking call that returns only after the activity has completed.
       return activities.composeGreeting("Hello", name);
     }
+
+    @Override
+    public String getValue() {
+      return "null";
+    }
   }
 
   /** Simple activity implementation, that concatenates two strings. */
@@ -114,6 +124,9 @@ public class HelloActivity {
     @Override
     public String composeGreeting(String greeting, String name) {
       log.info("Composing greeting...");
+
+      System.out.println("Executing ...");
+
       return greeting + " " + name + "!";
     }
   }
@@ -182,6 +195,23 @@ public class HelloActivity {
 
     // Display workflow execution results
     System.out.println(greeting);
+
+    try {
+      Thread.sleep(5000);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
+
+    client.newWorkflowStub(GreetingWorkflow.class, WORKFLOW_ID).getValue();
+
+    try {
+      Thread.sleep(5000);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
+
+    client.newWorkflowStub(GreetingWorkflow.class, WORKFLOW_ID).getValue();
+
     System.exit(0);
   }
 }

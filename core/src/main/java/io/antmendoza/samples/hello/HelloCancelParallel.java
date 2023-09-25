@@ -23,9 +23,9 @@ import io.temporal.activity.*;
 import io.temporal.client.ActivityCompletionException;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
-import io.temporal.client.WorkflowStub;
 import io.temporal.common.RetryOptions;
 import io.temporal.failure.ActivityFailure;
+import io.temporal.failure.ApplicationFailure;
 import io.temporal.failure.CanceledFailure;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.Worker;
@@ -76,7 +76,7 @@ public class HelloCancelParallel {
     WorkflowClient.start(workflow::getGreeting, "world");
 
     sleep(2000);
-    WorkflowStub.fromTyped(workflow).cancel();
+    // WorkflowStub.fromTyped(workflow).cancel();
 
     // Display workflow execution results
     // ystem.out.println("result " + result);
@@ -129,27 +129,9 @@ public class HelloCancelParallel {
 
       final List<Promise> promises = new ArrayList<>();
 
-      CancellationScope scope =
-          Workflow.newCancellationScope(
-              () -> {
-                promises.add(
-                    Async.procedure(
-                        () -> {
-                          activities.startAndWaitSecondsWithHeartbeat(50);
-                          activities.startAndWaitSecondsWithHeartbeat(3);
-                          activities.startAndWaitSecondsWithHeartbeat(3);
-                          activitiesExecuted = true;
-                        }));
-              });
-
-      scope.run();
-
-      boolean processExecuted = Workflow.await(Duration.ofSeconds(4), () -> activitiesExecuted);
-
-      if (!processExecuted) {
-        System.out.println("Cancelling scope....");
-        scope.cancel();
-      }
+      Async.function(activities::startAndWaitSecondsWithHeartbeat, 50);
+      Async.function(activities::startAndWaitSecondsWithHeartbeat, 3);
+      Async.function(activities::startAndWaitSecondsWithHeartbeat, 3);
 
       try {
         promises.get(0).get();
@@ -189,7 +171,9 @@ public class HelloCancelParallel {
         throw e;
       }
 
-      return "time sleep " + sleepSeconds;
+      throw ApplicationFailure.newNonRetryableFailure("", "");
+
+      // return "time sleep " + sleepSeconds;
     }
 
     @Override

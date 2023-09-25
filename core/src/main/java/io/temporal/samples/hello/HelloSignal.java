@@ -24,10 +24,8 @@ import io.temporal.client.WorkflowOptions;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
-import io.temporal.workflow.SignalMethod;
-import io.temporal.workflow.Workflow;
-import io.temporal.workflow.WorkflowInterface;
-import io.temporal.workflow.WorkflowMethod;
+import io.temporal.workflow.*;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -76,6 +74,10 @@ public class HelloSignal {
   // Define the workflow implementation which implements the getGreetings workflow method.
   public static class GreetingWorkflowImpl implements GreetingWorkflow {
 
+    private static final WorkflowLocal<Integer> countWL = WorkflowLocal.withInitial(() -> 0);
+    private static final WorkflowThreadLocal<Integer> countWTL =
+        WorkflowThreadLocal.withInitial(() -> 0);
+
     // messageQueue holds up to 10 messages (received from signals)
     List<String> messageQueue = new ArrayList<>(10);
     boolean exit = false;
@@ -84,7 +86,24 @@ public class HelloSignal {
     public List<String> getGreetings() {
       List<String> receivedMessages = new ArrayList<>(10);
 
+      countWL.set((countWL.get() + 1));
+      countWTL.set((countWTL.get() + 1));
+      System.out.println(
+          Thread.currentThread().getId() + " countWL.get() before while: " + countWL.get());
+      System.out.println(
+          Thread.currentThread().getId() + " countWTL.get() before while: " + countWTL.get());
+
       while (true) {
+
+        Workflow.sleep(Duration.ofSeconds(2));
+
+        countWL.set((countWL.get() + 1));
+        countWTL.set((countWTL.get() + 1));
+        System.out.println(
+            Thread.currentThread().getId() + " countWL.get() inside while: " + countWL.get());
+        System.out.println(
+            Thread.currentThread().getId() + " countWTL.get() inside while: " + countWTL.get());
+
         // Block current thread until the unblocking condition is evaluated to true
         Workflow.await(() -> !messageQueue.isEmpty() || exit);
         if (messageQueue.isEmpty() && exit) {
@@ -98,6 +117,13 @@ public class HelloSignal {
 
     @Override
     public void waitForName(String name) {
+
+      System.out.println(
+          Thread.currentThread().getId() + " countWL.get() from signal: " + countWL.get());
+
+      System.out.println(
+          Thread.currentThread().getId() + " countWTL.get() from signal: " + countWTL.get());
+
       messageQueue.add("Hello " + name + "!");
     }
 
@@ -152,8 +178,10 @@ public class HelloSignal {
     // Create the workflow client stub. It is used to start the workflow execution.
     GreetingWorkflow workflow = client.newWorkflowStub(GreetingWorkflow.class, workflowOptions);
 
+    //    GreetingWorkflow workflow = client.newWorkflowStub(GreetingWorkflow.class, WORKFLOW_ID);
+
     // Start workflow asynchronously and call its getGreeting workflow method
-    WorkflowClient.start(workflow::getGreetings);
+    // WorkflowClient.start(workflow::getGreetings);
 
     // After start for getGreeting returns, the workflow is guaranteed to be started.
     // So we can send a signal to it using the workflow stub.
