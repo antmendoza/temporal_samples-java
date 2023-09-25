@@ -1,4 +1,4 @@
-package io.eni;
+package eni;
 
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;

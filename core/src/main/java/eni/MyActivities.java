@@ -1,4 +1,4 @@
-package io.eni;
+package eni;
 
 import io.temporal.activity.ActivityInterface;
 import io.temporal.activity.ActivityMethod;
