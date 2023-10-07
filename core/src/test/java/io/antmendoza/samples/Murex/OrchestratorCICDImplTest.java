@@ -8,6 +8,7 @@ import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionRequest;
 import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
+import io.temporal.client.WorkflowStub;
 import io.temporal.testing.TestWorkflowRule;
 import org.junit.Rule;
 import org.junit.Test;
@@ -100,6 +101,7 @@ public class OrchestratorCICDImplTest {
 
   @Test(timeout = 1000)
   public void testExecuteTwoStagesAndSignalFirstStage() {
+    String namespace = testWorkflowRule.getTestEnvironment().getNamespace();
 
     testWorkflowRule.getTestEnvironment().start();
 
@@ -117,25 +119,38 @@ public class OrchestratorCICDImplTest {
 
     WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
 
+    // give some time the workflow to start
     try {
-      Thread.sleep(200);
+      Thread.sleep(100);
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }
 
     orchestratorCICD.manualVerificationStageA(new StageA.VerificationStageARequest());
 
-    try {
-      Thread.sleep(200);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
+    // wait stageA to complete
+    WorkflowStub workflowStubStageA =
+        workflowClient.newUntypedWorkflowStub(StageA.BuildWorkflowId(workflowId));
+    workflowStubStageA.getResult(Void.class);
+    assertEquals(
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
+        describeWorkflowExecution(workflowStubStageA.getExecution(), namespace)
+            .getWorkflowExecutionInfo()
+            .getStatus());
 
     orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBRequest());
 
-    workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);
-    String namespace = testWorkflowRule.getTestEnvironment().getNamespace();
+    // wait stageB to complete
+    WorkflowStub workflowStubStageB =
+        workflowClient.newUntypedWorkflowStub(StageA.BuildWorkflowId(workflowId));
+    workflowStubStageB.getResult(Void.class);
+    assertEquals(
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
+        describeWorkflowExecution(workflowStubStageB.getExecution(), namespace)
+            .getWorkflowExecutionInfo()
+            .getStatus());
 
+    workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);
     assertEquals(
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
         describeWorkflowExecution(execution, namespace).getWorkflowExecutionInfo().getStatus());
