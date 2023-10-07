@@ -33,7 +33,9 @@ public interface OrchestratorCICD {
       stageA =
           Workflow.newChildWorkflowStub(
               StageA.class,
-              ChildWorkflowOptions.newBuilder().setWorkflowId("stageA" + workflowId).build());
+              ChildWorkflowOptions.newBuilder()
+                  .setWorkflowId(StageA.BuildWorkflowId(workflowId))
+                  .build());
 
       // Start and wait for child workflow to complete
       stageA.run(new StageA.StageARequest());
@@ -41,7 +43,9 @@ public interface OrchestratorCICD {
       stageB =
           Workflow.newChildWorkflowStub(
               StageB.class,
-              ChildWorkflowOptions.newBuilder().setWorkflowId("stageB" + workflowId).build());
+              ChildWorkflowOptions.newBuilder()
+                  .setWorkflowId(StageB.BuildWorkflowId(workflowId))
+                  .build());
       // Start and wait for child workflow to complete
       stageB.run(new StageB.StageBRequest());
     }
