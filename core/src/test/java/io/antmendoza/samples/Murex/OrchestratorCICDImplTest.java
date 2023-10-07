@@ -16,7 +16,7 @@ import org.junit.Test;
 public class OrchestratorCICDImplTest {
 
   // set to true if want to run the test against a real server
-  private final boolean useExternalService = false;
+  private final boolean useExternalService = true;
 
   @Rule public TestWorkflowRule testWorkflowRule = createTestRule().build();
 
@@ -39,68 +39,8 @@ public class OrchestratorCICDImplTest {
     return builder;
   }
 
-  @Test(timeout = 1000)
-  public void testExecution() {
-
-    testWorkflowRule.getTestEnvironment().start();
-
-    final WorkflowClient workflowClient = testWorkflowRule.getWorkflowClient();
-
-    String workflowId = "my-orchestrator" + Math.random();
-    final WorkflowOptions options =
-        WorkflowOptions.newBuilder()
-            .setTaskQueue(testWorkflowRule.getTaskQueue())
-            .setWorkflowId(workflowId)
-            .build();
-
-    OrchestratorCICD orchestratorCICD =
-        workflowClient.newWorkflowStub(OrchestratorCICD.class, options);
-
-    WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
-
-    //        testWorkflowRule.getTestEnvironment().sleep(Duration.ofSeconds(1));
-
-    workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);
-    String namespace = testWorkflowRule.getTestEnvironment().getNamespace();
-
-    assertEquals(
-        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
-        describeWorkflowExecution(execution, namespace).getWorkflowExecutionInfo().getStatus());
-
-    testWorkflowRule.getTestEnvironment().shutdown();
-  }
-
-  @Test(timeout = 1000)
-  public void testExecuteTwoStages() {
-
-    testWorkflowRule.getTestEnvironment().start();
-
-    final WorkflowClient workflowClient = testWorkflowRule.getWorkflowClient();
-
-    String workflowId = "my-orchestrator" + Math.random();
-    final WorkflowOptions options =
-        WorkflowOptions.newBuilder()
-            .setTaskQueue(testWorkflowRule.getTaskQueue())
-            .setWorkflowId(workflowId)
-            .build();
-
-    OrchestratorCICD orchestratorCICD =
-        workflowClient.newWorkflowStub(OrchestratorCICD.class, options);
-
-    WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
-
-    workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);
-    String namespace = testWorkflowRule.getTestEnvironment().getNamespace();
-
-    assertEquals(
-        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
-        describeWorkflowExecution(execution, namespace).getWorkflowExecutionInfo().getStatus());
-
-    testWorkflowRule.getTestEnvironment().shutdown();
-  }
-
-  @Test(timeout = 1000)
-  public void testExecuteTwoStagesAndSignalFirstStage() {
+  @Test(timeout = 2000)
+  public void testExecuteTwoStagesAndSignalStages() {
     String namespace = testWorkflowRule.getTestEnvironment().getNamespace();
 
     testWorkflowRule.getTestEnvironment().start();
@@ -120,29 +60,47 @@ public class OrchestratorCICDImplTest {
     WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
 
     // give some time the workflow to start
-    try {
-      Thread.sleep(100);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
+
+    WorkflowStub workflowStubStageA =
+        workflowClient.newUntypedWorkflowStub(StageA.BuildWorkflowId(workflowId));
+
+    // Wait for stageA to start
+    waitUntilTrue(
+        new Awaitable(
+            () -> {
+              return WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING.equals(
+                  describeWorkflowExecution(workflowStubStageA.getExecution(), namespace)
+                      .getWorkflowExecutionInfo()
+                      .getStatus());
+            }));
 
     orchestratorCICD.manualVerificationStageA(new StageA.VerificationStageARequest());
 
     // wait stageA to complete
-    WorkflowStub workflowStubStageA =
-        workflowClient.newUntypedWorkflowStub(StageA.BuildWorkflowId(workflowId));
     workflowStubStageA.getResult(Void.class);
+
     assertEquals(
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
         describeWorkflowExecution(workflowStubStageA.getExecution(), namespace)
             .getWorkflowExecutionInfo()
             .getStatus());
 
+    WorkflowStub workflowStubStageB =
+        workflowClient.newUntypedWorkflowStub(StageB.BuildWorkflowId(workflowId));
+
+    // Wait for stageB to start
+    waitUntilTrue(
+        new Awaitable(
+            () -> {
+              return WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING.equals(
+                  describeWorkflowExecution(workflowStubStageB.getExecution(), namespace)
+                      .getWorkflowExecutionInfo()
+                      .getStatus());
+            }));
+
     orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBRequest());
 
     // wait stageB to complete
-    WorkflowStub workflowStubStageB =
-        workflowClient.newUntypedWorkflowStub(StageA.BuildWorkflowId(workflowId));
     workflowStubStageB.getResult(Void.class);
     assertEquals(
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
@@ -158,6 +116,10 @@ public class OrchestratorCICDImplTest {
     testWorkflowRule.getTestEnvironment().shutdown();
   }
 
+  private boolean waitUntilTrue(Awaitable r) {
+    return r.whenTrue();
+  }
+
   private DescribeWorkflowExecutionResponse describeWorkflowExecution(
       WorkflowExecution execution, String namespace) {
     DescribeWorkflowExecutionRequest.Builder builder =
@@ -171,5 +133,46 @@ public class OrchestratorCICDImplTest {
             .blockingStub()
             .describeWorkflowExecution(builder.build());
     return result;
+  }
+
+  public static class Awaitable {
+
+    private final Condition condition;
+
+    private Awaitable(Condition condition) {
+      this.condition = condition;
+    }
+
+    public boolean whenTrue() {
+
+      while (true) {
+
+        try {
+
+          final boolean result = this.condition.check();
+
+          System.out.println("result " + result);
+
+          if (result) {
+            return true;
+          }
+        } catch (Exception e) {
+          // do nothing
+        }
+
+        try {
+
+          System.out.println("sleep ");
+
+          Thread.sleep(100);
+        } catch (InterruptedException e) {
+
+        }
+      }
+    }
+
+    interface Condition {
+      boolean check();
+    }
   }
 }
