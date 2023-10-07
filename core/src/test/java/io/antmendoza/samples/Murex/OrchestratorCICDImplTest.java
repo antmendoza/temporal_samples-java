@@ -21,7 +21,9 @@ public class OrchestratorCICDImplTest {
           .setTarget("127.0.0.1:7233") // default 127.0.0.1:7233
           .setNamespace("default")
           .setWorkflowTypes(
-              OrchestratorCICDImpl.class, StageB.StageBImpl.class, StageA.StageAImpl.class)
+              OrchestratorCICD.OrchestratorCICDImpl.class,
+              StageB.StageBImpl.class,
+              StageA.StageAImpl.class)
           .setDoNotStart(true)
           .build();
 
@@ -74,6 +76,37 @@ public class OrchestratorCICDImplTest {
         workflowClient.newWorkflowStub(OrchestratorCICD.class, options);
 
     WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
+
+    workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);
+    String namespace = testWorkflowRule.getTestEnvironment().getNamespace();
+
+    assertEquals(
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
+        describeWorkflowExecution(execution, namespace).getWorkflowExecutionInfo().getStatus());
+
+    testWorkflowRule.getTestEnvironment().shutdown();
+  }
+
+  @Test
+  public void testExecuteTwoStagesAndSignalFirstStage() {
+
+    testWorkflowRule.getTestEnvironment().start();
+
+    final WorkflowClient workflowClient = testWorkflowRule.getWorkflowClient();
+
+    String workflowId = "my-orchestrator" + Math.random();
+    final WorkflowOptions options =
+        WorkflowOptions.newBuilder()
+            .setTaskQueue(testWorkflowRule.getTaskQueue())
+            .setWorkflowId(workflowId)
+            .build();
+
+    OrchestratorCICD orchestratorCICD =
+        workflowClient.newWorkflowStub(OrchestratorCICD.class, options);
+
+    WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
+
+    orchestratorCICD.manualVerificationStageA(new StageA.VerificationStageARequest());
 
     workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);
     String namespace = testWorkflowRule.getTestEnvironment().getNamespace();
