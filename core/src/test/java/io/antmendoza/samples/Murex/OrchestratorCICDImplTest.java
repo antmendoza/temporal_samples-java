@@ -14,27 +14,38 @@ import org.junit.Test;
 
 public class OrchestratorCICDImplTest {
 
-  @Rule
-  public TestWorkflowRule testWorkflowRule =
-      TestWorkflowRule.newBuilder()
-          .setUseExternalService(true) // to run the test against a "real" cluster
-          .setTarget("127.0.0.1:7233") // default 127.0.0.1:7233
-          .setNamespace("default")
-          .setWorkflowTypes(
-              OrchestratorCICD.OrchestratorCICDImpl.class,
-              StageB.StageBImpl.class,
-              StageA.StageAImpl.class)
-          .setDoNotStart(true)
-          .build();
+  // set to true if want to run the test against a real server
+  private final boolean useExternalService = false;
 
-  @Test
+  @Rule public TestWorkflowRule testWorkflowRule = createTestRule().build();
+
+  private TestWorkflowRule.Builder createTestRule() {
+    TestWorkflowRule.Builder builder =
+        TestWorkflowRule.newBuilder()
+            .setWorkflowTypes(
+                OrchestratorCICD.OrchestratorCICDImpl.class,
+                StageB.StageBImpl.class,
+                StageA.StageAImpl.class)
+            .setDoNotStart(true);
+
+    if (useExternalService) {
+      builder
+          .setUseExternalService(useExternalService) // to run the test against a "real" cluster
+          .setTarget("127.0.0.1:7233") // default 127.0.0.1:7233
+          .setNamespace("default"); // default
+    }
+
+    return builder;
+  }
+
+  @Test(timeout = 1000)
   public void testExecution() {
 
     testWorkflowRule.getTestEnvironment().start();
 
     final WorkflowClient workflowClient = testWorkflowRule.getWorkflowClient();
 
-    String workflowId = "my-orchestrator";
+    String workflowId = "my-orchestrator" + Math.random();
     final WorkflowOptions options =
         WorkflowOptions.newBuilder()
             .setTaskQueue(testWorkflowRule.getTaskQueue())
@@ -58,7 +69,7 @@ public class OrchestratorCICDImplTest {
     testWorkflowRule.getTestEnvironment().shutdown();
   }
 
-  @Test
+  @Test(timeout = 1000)
   public void testExecuteTwoStages() {
 
     testWorkflowRule.getTestEnvironment().start();
@@ -87,7 +98,7 @@ public class OrchestratorCICDImplTest {
     testWorkflowRule.getTestEnvironment().shutdown();
   }
 
-  @Test
+  @Test(timeout = 1000)
   public void testExecuteTwoStagesAndSignalFirstStage() {
 
     testWorkflowRule.getTestEnvironment().start();
@@ -106,7 +117,21 @@ public class OrchestratorCICDImplTest {
 
     WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
 
+    try {
+      Thread.sleep(200);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
+
     orchestratorCICD.manualVerificationStageA(new StageA.VerificationStageARequest());
+
+    try {
+      Thread.sleep(200);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
+
+    orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBRequest());
 
     workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);
     String namespace = testWorkflowRule.getTestEnvironment().getNamespace();

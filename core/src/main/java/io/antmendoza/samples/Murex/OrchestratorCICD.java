@@ -14,34 +14,47 @@ public interface OrchestratorCICD {
   @SignalMethod
   void manualVerificationStageA(StageA.VerificationStageARequest request);
 
+  @SignalMethod
+  void manualVerificationStageB(StageB.VerificationStageBRequest verificationStageBRequest);
+
   class OrchestratorCICDImpl implements OrchestratorCICD {
 
     private final Logger log = Workflow.getLogger("OrchestratorCICDImpl");
 
     private StageA stageA;
+    private StageB stageB;
 
     @Override
     public void run(OrchestratorRequest request) {
 
       String workflowId = Workflow.getInfo().getWorkflowId();
       log.info("Starting workflow " + workflowId);
+
       stageA =
-          Workflow.newChildWorkflowStub(StageA.class, ChildWorkflowOptions.newBuilder().build());
+          Workflow.newChildWorkflowStub(
+              StageA.class,
+              ChildWorkflowOptions.newBuilder().setWorkflowId("stageA" + workflowId).build());
 
       // Start and wait for child workflow to complete
       stageA.run(new StageA.StageARequest());
 
-      final StageB stageB =
-          Workflow.newChildWorkflowStub(StageB.class, ChildWorkflowOptions.newBuilder().build());
-
+      stageB =
+          Workflow.newChildWorkflowStub(
+              StageB.class,
+              ChildWorkflowOptions.newBuilder().setWorkflowId("stageB" + workflowId).build());
       // Start and wait for child workflow to complete
       stageB.run(new StageB.StageBRequest());
     }
 
     @Override
     public void manualVerificationStageA(StageA.VerificationStageARequest request) {
-
       stageA.manualVerificationStageA(request);
+    }
+
+    @Override
+    public void manualVerificationStageB(
+        StageB.VerificationStageBRequest verificationStageBRequest) {
+      stageB.manualVerificationStageB(verificationStageBRequest);
     }
   }
 }
