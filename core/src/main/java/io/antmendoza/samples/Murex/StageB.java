@@ -1,5 +1,6 @@
 package io.antmendoza.samples.Murex;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.temporal.workflow.SignalMethod;
 import io.temporal.workflow.Workflow;
 import io.temporal.workflow.WorkflowInterface;
@@ -28,7 +29,19 @@ public interface StageB {
     @Override
     public void run(StageBRequest stageBRequest) {
 
+      System.out.println("start  StageBRequest" + Workflow.getInfo().getRunId());
+
       Workflow.await(() -> verificationStageBRequest != null);
+
+      if (verificationStageBRequest.isVerificationOk()) {
+        return;
+      }
+
+      if (verificationStageBRequest.isRetryStage()) {
+        System.out.println("continue as new   StageBRequest");
+
+        Workflow.continueAsNew(new StageBRequest());
+      }
     }
 
     @Override
@@ -37,7 +50,25 @@ public interface StageB {
     }
   }
 
+  @JsonIgnoreProperties(ignoreUnknown = true)
   class VerificationStageBRequest {
-    public final String id = "";
+    public static final String RETRY_STAGE_A = "RETRY_STAGE_A";
+    public static final String STATUS_OK = "STATUS_OK";
+    public static final String STATUS_KO = "STATUS_KO";
+    private String retryStageA;
+
+    public VerificationStageBRequest() {}
+
+    public VerificationStageBRequest(String retryStageA) {
+      this.retryStageA = retryStageA;
+    }
+
+    public boolean isVerificationOk() {
+      return this.retryStageA.equals(STATUS_OK);
+    }
+
+    public boolean isRetryStage() {
+      return this.retryStageA.equals(STATUS_KO);
+    }
   }
 }

@@ -1,5 +1,6 @@
 package io.antmendoza.samples.Murex;
 
+import static io.antmendoza.samples.Murex.StageB.VerificationStageBRequest.STATUS_OK;
 import static org.junit.Assert.assertEquals;
 
 import io.temporal.api.common.v1.WorkflowExecution;
@@ -16,7 +17,7 @@ import org.junit.Test;
 public class OrchestratorCICDImplTest {
 
   // set to true if you want to run the test against a real server
-  private final boolean useExternalService = true;
+  private final boolean useExternalService = false;
 
   @Rule public TestWorkflowRule testWorkflowRule = createTestRule().build();
 
@@ -74,7 +75,7 @@ public class OrchestratorCICDImplTest {
                       .getStatus());
             }));
 
-    orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBRequest());
+    orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBRequest(STATUS_OK));
 
     // wait stageB to complete
     workflowStubStageB.getResult(Void.class);
@@ -93,15 +94,123 @@ public class OrchestratorCICDImplTest {
     testWorkflowRule.getTestEnvironment().shutdown();
   }
 
+  @Test(timeout = 4000)
+  public void testRetryStageB() {
+    String namespace = testWorkflowRule.getTestEnvironment().getNamespace();
+
+    testWorkflowRule.getTestEnvironment().start();
+
+    final WorkflowClient workflowClient = testWorkflowRule.getWorkflowClient();
+    final String workflowId = "my-orchestrator-" + Math.random();
+    final WorkflowOptions options =
+        WorkflowOptions.newBuilder()
+            .setTaskQueue(testWorkflowRule.getTaskQueue())
+            .setWorkflowId(workflowId)
+            .build();
+
+    final OrchestratorCICD orchestratorCICD =
+        workflowClient.newWorkflowStub(OrchestratorCICD.class, options);
+
+    final WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
+
+    final WorkflowStub workflowStubStageA =
+        workflowClient.newUntypedWorkflowStub(StageA.BuildWorkflowId(workflowId));
+
+    // Wait for stageA to start
+    waitUntilTrue(
+        new Awaitable(
+            () -> {
+              return WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING.equals(
+                  describeWorkflowExecution(workflowStubStageA.getExecution(), namespace)
+                      .getWorkflowExecutionInfo()
+                      .getStatus());
+            }));
+    orchestratorCICD.manualVerificationStageA(new StageA.VerificationStageARequest());
+
+    // wait stageA to complete
+    workflowStubStageA.getResult(Void.class);
+    assertEquals(
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
+        describeWorkflowExecution(workflowStubStageA.getExecution(), namespace)
+            .getWorkflowExecutionInfo()
+            .getStatus());
+
+    WorkflowStub workflowStubStageB =
+        workflowClient.newUntypedWorkflowStub(StageB.BuildWorkflowId(workflowId));
+
+    // Wait for stageB to start
+    waitUntilTrue(
+        new Awaitable(
+            () -> {
+              return WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING.equals(
+                  describeWorkflowExecution(workflowStubStageB.getExecution(), namespace)
+                      .getWorkflowExecutionInfo()
+                      .getStatus());
+            }));
+
+    orchestratorCICD.manualVerificationStageB(
+        new StageB.VerificationStageBRequest(StageB.VerificationStageBRequest.STATUS_KO));
+
+    // wait stageB to change state from running
+    OrchestratorCICD.OrchestratorCICDImpl.StagesDescription.StageDescription stageBDescription =
+        workflowClient
+            .newWorkflowStub(OrchestratorCICD.class, workflowId)
+            .stagesDescription()
+            .getStageBDescription();
+    waitUntilTrue(
+        new Awaitable(
+            () -> {
+              WorkflowExecutionStatus status =
+                  describeWorkflowExecution(
+                          WorkflowExecution.newBuilder()
+                              .setWorkflowId(stageBDescription.getWorkflowId())
+                              .setRunId(stageBDescription.getRunId())
+                              .build(),
+                          namespace)
+                      .getWorkflowExecutionInfo()
+                      .getStatus();
+
+              return !WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING.equals(status);
+            }));
+
+    assertEquals(
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW,
+        describeWorkflowExecution(
+                WorkflowExecution.newBuilder()
+                    .setWorkflowId(stageBDescription.getWorkflowId())
+                    .setRunId(stageBDescription.getRunId())
+                    .build(),
+                namespace)
+            .getWorkflowExecutionInfo()
+            .getStatus());
+
+    orchestratorCICD.manualVerificationStageB(
+        new StageB.VerificationStageBRequest(StageB.VerificationStageBRequest.STATUS_OK));
+
+    // wait for main workflow to continueAsNew
+    workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);
+    assertEquals(
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
+        describeWorkflowExecution(execution, namespace).getWorkflowExecutionInfo().getStatus());
+
+    testWorkflowRule.getTestEnvironment().shutdown();
+  }
+
   private void waitUntilTrue(Awaitable r) {
     r.returnWhenTrue();
   }
 
   private DescribeWorkflowExecutionResponse describeWorkflowExecution(
       WorkflowExecution execution, String namespace) {
+
     DescribeWorkflowExecutionRequest.Builder builder =
         DescribeWorkflowExecutionRequest.newBuilder()
             .setNamespace(namespace)
+            // .setExecution(
+            //   WorkflowExecution.newBuilder()
+            //       .setWorkflowId(execution.getWorkflowId())
+            //       .setRunId(execution.getRunId())
+            //       .build())
             .setExecution(execution);
     DescribeWorkflowExecutionResponse result =
         testWorkflowRule
@@ -154,7 +263,7 @@ public class OrchestratorCICDImplTest {
 
     if (useExternalService) {
       builder
-          .setUseExternalService(useExternalService) // to run the test against a "real" cluster
+          .setUseExternalService(useExternalService)
           .setTarget("127.0.0.1:7233") // default 127.0.0.1:7233
           .setNamespace("default"); // default
     }
