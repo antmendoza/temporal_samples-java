@@ -103,7 +103,7 @@ public class HelloActivity {
     private final GreetingActivities activities =
         Workflow.newActivityStub(
             GreetingActivities.class,
-            ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(2)).build());
+            ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(4)).build());
 
     @Override
     public String getGreeting(String name) {
@@ -126,6 +126,14 @@ public class HelloActivity {
       log.info("Composing greeting...");
 
       System.out.println("Executing ...");
+
+      try {
+        Thread.sleep(2500);
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+
+      log.info("Composing end...");
 
       return greeting + " " + name + "!";
     }

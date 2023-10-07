@@ -19,6 +19,7 @@
 
 package io.temporal.samples.springboot;
 
+import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.samples.springboot.hello.HelloWorkflow;
@@ -58,6 +59,7 @@ public class HelloSampleTest {
 
   @Test
   public void testHello() {
+
     HelloWorkflow workflow =
         workflowClient.newWorkflowStub(
             HelloWorkflow.class,
@@ -65,7 +67,22 @@ public class HelloSampleTest {
                 .setTaskQueue("HelloSampleTaskQueue")
                 .setWorkflowId("HelloSampleTest")
                 .build());
-    String result = workflow.sayHello(new Person("Temporal", "User"));
+
+
+
+
+
+    WorkflowClient.execute(workflow::sayHello, new Person("Temporal", "User"));
+
+
+
+    DescribeWorkflowExecutionResponse response =
+            workflowClient.getWorkflowServiceStubs().blockingStub().describeWorkflowExecution(request);
+    String workflowStatus = String.valueOf(response.getWorkflowExecutionInfo().getStatus());
+
+    String result =
+        workflowClient.newUntypedWorkflowStub("HelloSampleTest").getResult(String.class);
+    //    String result = workflow.sayHello(new Person("Temporal", "User"));
     Assert.notNull(result, "Greeting should not be null");
     Assert.isTrue(result.equals("Hello Temporal User!"), "Invalid result");
   }

@@ -112,5 +112,10 @@ public class HelloActivityReplayTest {
       Workflow.sleep(100);
       return activities.composeGreeting("Hello", name);
     }
+
+    @Override
+    public String getValue() {
+      return null;
+    }
   }
 }

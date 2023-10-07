@@ -1,4 +1,4 @@
-package eni;
+package io.antmendoza.samples.eni;
 
 import io.temporal.activity.ActivityInterface;
 import io.temporal.activity.ActivityMethod;

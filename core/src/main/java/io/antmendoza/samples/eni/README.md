@@ -7,3 +7,5 @@ and each workflow create 3 activities that are occupying one slot, those are 900
 maybe this is not a problem now, but I don't know in the future if it will be.
   - everytime an activity is delivered to your worker. 
 - keep resources busy
+- instead of delegating the correlation to the workflow, 
+we are building it and putting it in an external system.

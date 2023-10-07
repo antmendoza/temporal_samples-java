@@ -7,7 +7,7 @@ import io.temporal.serviceclient.WorkflowServiceStubsOptions;
 
 public class ServiceFactory {
 
-  private static final boolean ssl = false;
+  private static final boolean ssl = true;
 
   private static SslContextBuilderProvider sslContextBuilderProvider =
       new SslContextBuilderProvider();
