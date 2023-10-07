@@ -56,7 +56,6 @@ public class OrchestratorCICDImplTest {
     testWorkflowRule.getTestEnvironment().shutdown();
   }
 
-
   @Test
   public void testExecuteTwoStages() {
 
@@ -66,13 +65,13 @@ public class OrchestratorCICDImplTest {
 
     String workflowId = "my-orchestrator" + Math.random();
     final WorkflowOptions options =
-            WorkflowOptions.newBuilder()
-                    .setTaskQueue(testWorkflowRule.getTaskQueue())
-                    .setWorkflowId(workflowId)
-                    .build();
+        WorkflowOptions.newBuilder()
+            .setTaskQueue(testWorkflowRule.getTaskQueue())
+            .setWorkflowId(workflowId)
+            .build();
 
     OrchestratorCICD orchestratorCICD =
-            workflowClient.newWorkflowStub(OrchestratorCICD.class, options);
+        workflowClient.newWorkflowStub(OrchestratorCICD.class, options);
 
     WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
 
@@ -80,37 +79,8 @@ public class OrchestratorCICDImplTest {
     String namespace = testWorkflowRule.getTestEnvironment().getNamespace();
 
     assertEquals(
-            WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
-            describeWorkflowExecution(execution, namespace).getWorkflowExecutionInfo().getStatus());
-
-    testWorkflowRule.getTestEnvironment().shutdown();
-  }
-
-  @Test
-  public void testExecuteTwoStages() {
-
-    testWorkflowRule.getTestEnvironment().start();
-
-    final WorkflowClient workflowClient = testWorkflowRule.getWorkflowClient();
-
-    String workflowId = "my-orchestrator" + Math.random();
-    final WorkflowOptions options =
-            WorkflowOptions.newBuilder()
-                    .setTaskQueue(testWorkflowRule.getTaskQueue())
-                    .setWorkflowId(workflowId)
-                    .build();
-
-    OrchestratorCICD orchestratorCICD =
-            workflowClient.newWorkflowStub(OrchestratorCICD.class, options);
-
-    WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
-
-    workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);
-    String namespace = testWorkflowRule.getTestEnvironment().getNamespace();
-
-    assertEquals(
-            WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
-            describeWorkflowExecution(execution, namespace).getWorkflowExecutionInfo().getStatus());
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
+        describeWorkflowExecution(execution, namespace).getWorkflowExecutionInfo().getStatus());
 
     testWorkflowRule.getTestEnvironment().shutdown();
   }
