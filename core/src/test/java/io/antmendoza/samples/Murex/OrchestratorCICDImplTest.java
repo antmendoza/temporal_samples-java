@@ -15,29 +15,10 @@ import org.junit.Test;
 
 public class OrchestratorCICDImplTest {
 
-  // set to true if want to run the test against a real server
+  // set to true if you want to run the test against a real server
   private final boolean useExternalService = true;
 
   @Rule public TestWorkflowRule testWorkflowRule = createTestRule().build();
-
-  private TestWorkflowRule.Builder createTestRule() {
-    TestWorkflowRule.Builder builder =
-        TestWorkflowRule.newBuilder()
-            .setWorkflowTypes(
-                OrchestratorCICD.OrchestratorCICDImpl.class,
-                StageB.StageBImpl.class,
-                StageA.StageAImpl.class)
-            .setDoNotStart(true);
-
-    if (useExternalService) {
-      builder
-          .setUseExternalService(useExternalService) // to run the test against a "real" cluster
-          .setTarget("127.0.0.1:7233") // default 127.0.0.1:7233
-          .setNamespace("default"); // default
-    }
-
-    return builder;
-  }
 
   @Test(timeout = 2000)
   public void testExecuteTwoStagesAndSignalStages() {
@@ -46,22 +27,19 @@ public class OrchestratorCICDImplTest {
     testWorkflowRule.getTestEnvironment().start();
 
     final WorkflowClient workflowClient = testWorkflowRule.getWorkflowClient();
-
-    String workflowId = "my-orchestrator" + Math.random();
+    final String workflowId = "my-orchestrator-" + Math.random();
     final WorkflowOptions options =
         WorkflowOptions.newBuilder()
             .setTaskQueue(testWorkflowRule.getTaskQueue())
             .setWorkflowId(workflowId)
             .build();
 
-    OrchestratorCICD orchestratorCICD =
+    final OrchestratorCICD orchestratorCICD =
         workflowClient.newWorkflowStub(OrchestratorCICD.class, options);
 
-    WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
+    final WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
 
-    // give some time the workflow to start
-
-    WorkflowStub workflowStubStageA =
+    final WorkflowStub workflowStubStageA =
         workflowClient.newUntypedWorkflowStub(StageA.BuildWorkflowId(workflowId));
 
     // Wait for stageA to start
@@ -73,12 +51,10 @@ public class OrchestratorCICDImplTest {
                       .getWorkflowExecutionInfo()
                       .getStatus());
             }));
-
     orchestratorCICD.manualVerificationStageA(new StageA.VerificationStageARequest());
 
     // wait stageA to complete
     workflowStubStageA.getResult(Void.class);
-
     assertEquals(
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
         describeWorkflowExecution(workflowStubStageA.getExecution(), namespace)
@@ -108,6 +84,7 @@ public class OrchestratorCICDImplTest {
             .getWorkflowExecutionInfo()
             .getStatus());
 
+    // wait for main workflow to complete
     workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);
     assertEquals(
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
@@ -116,8 +93,8 @@ public class OrchestratorCICDImplTest {
     testWorkflowRule.getTestEnvironment().shutdown();
   }
 
-  private boolean waitUntilTrue(Awaitable r) {
-    return r.whenTrue();
+  private void waitUntilTrue(Awaitable r) {
+    r.returnWhenTrue();
   }
 
   private DescribeWorkflowExecutionResponse describeWorkflowExecution(
@@ -143,30 +120,20 @@ public class OrchestratorCICDImplTest {
       this.condition = condition;
     }
 
-    public boolean whenTrue() {
-
+    public void returnWhenTrue() {
       while (true) {
-
         try {
-
           final boolean result = this.condition.check();
-
-          System.out.println("result " + result);
-
           if (result) {
-            return true;
+            return;
           }
         } catch (Exception e) {
           // do nothing
         }
 
         try {
-
-          System.out.println("sleep ");
-
           Thread.sleep(100);
         } catch (InterruptedException e) {
-
         }
       }
     }
@@ -174,5 +141,24 @@ public class OrchestratorCICDImplTest {
     interface Condition {
       boolean check();
     }
+  }
+
+  private TestWorkflowRule.Builder createTestRule() {
+    TestWorkflowRule.Builder builder =
+        TestWorkflowRule.newBuilder()
+            .setWorkflowTypes(
+                OrchestratorCICD.OrchestratorCICDImpl.class,
+                StageB.StageBImpl.class,
+                StageA.StageAImpl.class)
+            .setDoNotStart(true);
+
+    if (useExternalService) {
+      builder
+          .setUseExternalService(useExternalService) // to run the test against a "real" cluster
+          .setTarget("127.0.0.1:7233") // default 127.0.0.1:7233
+          .setNamespace("default"); // default
+    }
+
+    return builder;
   }
 }

@@ -9,7 +9,7 @@ import io.temporal.workflow.WorkflowMethod;
 public interface StageA {
 
   static String BuildWorkflowId(String workflowId) {
-    return "stageA" + workflowId;
+    return "stageA-" + workflowId;
   }
 
   @WorkflowMethod
