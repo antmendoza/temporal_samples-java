@@ -1,5 +1,6 @@
 package io.antmendoza.samples.Murex;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.temporal.workflow.SignalMethod;
 import io.temporal.workflow.Workflow;
@@ -9,7 +10,7 @@ import io.temporal.workflow.WorkflowMethod;
 @WorkflowInterface
 public interface StageB {
 
-  static String BuildWorkflowId(String workflowId) {
+  static String buildWorkflowId(String workflowId) {
     return "stageB-" + workflowId;
   }
 
@@ -55,20 +56,22 @@ public interface StageB {
     public static final String RETRY_STAGE_A = "RETRY_STAGE_A";
     public static final String STATUS_OK = "STATUS_OK";
     public static final String STATUS_KO = "STATUS_KO";
-    private String retryStageA;
+    private String value;
 
     public VerificationStageBRequest() {}
 
-    public VerificationStageBRequest(String retryStageA) {
-      this.retryStageA = retryStageA;
+    public VerificationStageBRequest(String value) {
+      this.value = value;
     }
 
+    @JsonIgnore
     public boolean isVerificationOk() {
-      return this.retryStageA.equals(STATUS_OK);
+      return this.value.equals(STATUS_OK);
     }
 
+    @JsonIgnore
     public boolean isRetryStage() {
-      return this.retryStageA.equals(STATUS_KO);
+      return this.value.equals(STATUS_KO);
     }
   }
 }

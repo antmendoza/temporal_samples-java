@@ -2,6 +2,8 @@ package io.antmendoza.samples.Murex;
 
 import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.workflow.*;
+import java.util.List;
+import org.apache.commons.collections.ArrayStack;
 import org.slf4j.Logger;
 
 @WorkflowInterface
@@ -21,6 +23,9 @@ public interface OrchestratorCICD {
   @QueryMethod
   OrchestratorCICDImpl.StagesDescription stagesDescription();
 
+  @QueryMethod
+  String currentStage();
+
   class OrchestratorCICDImpl implements OrchestratorCICD {
 
     private final Logger log = Workflow.getLogger("OrchestratorCICDImpl");
@@ -28,6 +33,8 @@ public interface OrchestratorCICD {
     private StageA stageA;
     private StageB stageB;
     private StagesDescription stagesDescription = new StagesDescription();
+
+    private List<StageLog> stageLogs = new ArrayStack();
 
     @Override
     public void run(OrchestratorRequest request) {
@@ -40,18 +47,21 @@ public interface OrchestratorCICD {
             Workflow.newChildWorkflowStub(
                 StageA.class,
                 ChildWorkflowOptions.newBuilder()
-                    .setWorkflowId(StageA.BuildWorkflowId(workflowId))
+                    .setWorkflowId(StageA.buildWorkflowId(workflowId))
                     .build());
-        Promise<Void> resultStageA = Async.procedure(stageA::run, new StageA.StageARequest());
-        Promise<WorkflowExecution> childExecution = Workflow.getWorkflowExecution(stageA);
+        final Promise<Void> resultStageA = Async.procedure(stageA::run, new StageA.StageARequest());
+        final Promise<WorkflowExecution> childExecution = Workflow.getWorkflowExecution(stageA);
 
         // Wait for child to start
         WorkflowExecution stageAExecution = childExecution.get();
+        stageLogs.add(new StageLog("STAGE_A_STARTED", Workflow.currentTimeMillis()));
+
         stagesDescription.setStageA(
             new StagesDescription.StageDescription(
-                StageA.BuildWorkflowId(workflowId), stageAExecution.getRunId()));
+                StageA.buildWorkflowId(workflowId), stageAExecution.getRunId()));
         // Wait for the stageA to complete
         Promise.allOf(resultStageA).get();
+        stageLogs.add(new StageLog("STAGE_A_COMPLETED", Workflow.currentTimeMillis()));
       }
 
       {
@@ -59,19 +69,21 @@ public interface OrchestratorCICD {
             Workflow.newChildWorkflowStub(
                 StageB.class,
                 ChildWorkflowOptions.newBuilder()
-                    .setWorkflowId(StageB.BuildWorkflowId(workflowId))
+                    .setWorkflowId(StageB.buildWorkflowId(workflowId))
                     .build());
-        Promise<Void> resultStageB = Async.procedure(stageB::run, new StageB.StageBRequest());
-        Promise<WorkflowExecution> childExecution = Workflow.getWorkflowExecution(stageB);
+        final Promise<Void> resultStageB = Async.procedure(stageB::run, new StageB.StageBRequest());
+        final Promise<WorkflowExecution> childExecution = Workflow.getWorkflowExecution(stageB);
 
         // Wait for child to start
-        WorkflowExecution stageBExecution = childExecution.get();
+        final WorkflowExecution stageBExecution = childExecution.get();
+        stageLogs.add(new StageLog("STAGE_B_STARTED", Workflow.currentTimeMillis()));
         stagesDescription.setStageB(
             new StagesDescription.StageDescription(
-                StageB.BuildWorkflowId(workflowId), stageBExecution.getRunId()));
+                StageB.buildWorkflowId(workflowId), stageBExecution.getRunId()));
 
         // Wait for the stageA to complete
         Promise.allOf(resultStageB).get();
+        stageLogs.add(new StageLog("STAGE_B_COMPLETED", Workflow.currentTimeMillis()));
       }
     }
 
@@ -82,7 +94,7 @@ public interface OrchestratorCICD {
     @Override
     public void manualVerificationStageA(StageA.VerificationStageARequest request) {
 
-      Workflow.newExternalWorkflowStub(StageA.class, StageA.BuildWorkflowId(getWorkflowId()))
+      Workflow.newExternalWorkflowStub(StageA.class, StageA.buildWorkflowId(getWorkflowId()))
           .manualVerificationStageA(request);
     }
 
@@ -90,13 +102,18 @@ public interface OrchestratorCICD {
     public void manualVerificationStageB(
         StageB.VerificationStageBRequest verificationStageBRequest) {
 
-      Workflow.newExternalWorkflowStub(StageB.class, StageB.BuildWorkflowId(getWorkflowId()))
+      Workflow.newExternalWorkflowStub(StageB.class, StageB.buildWorkflowId(getWorkflowId()))
           .manualVerificationStageB(verificationStageBRequest);
     }
 
     @Override
     public StagesDescription stagesDescription() {
       return this.stagesDescription;
+    }
+
+    @Override
+    public String currentStage() {
+      return stageLogs.get(stageLogs.size() - 1).getStage();
     }
 
     public static class StagesDescription {
@@ -143,4 +160,36 @@ public interface OrchestratorCICD {
   }
 
   class OrchestratorRequest {}
+
+  class StageLog {
+    private String stage;
+    private long currentTimeMillis;
+
+    public StageLog(String stage, long currentTimeMillis) {
+
+      this.stage = stage;
+      this.currentTimeMillis = currentTimeMillis;
+    }
+
+    public StageLog() {}
+
+    public String getStage() {
+      return stage;
+    }
+
+    public long getCurrentTimeMillis() {
+      return currentTimeMillis;
+    }
+
+    @Override
+    public String toString() {
+      return "StageLog{"
+          + "stage='"
+          + stage
+          + '\''
+          + ", currentTimeMillis="
+          + currentTimeMillis
+          + '}';
+    }
+  }
 }

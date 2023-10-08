@@ -5,19 +5,22 @@ import static org.junit.Assert.assertEquals;
 
 import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.api.enums.v1.WorkflowExecutionStatus;
+import io.temporal.api.workflow.v1.WorkflowExecutionInfo;
 import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionRequest;
 import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse;
+import io.temporal.api.workflowservice.v1.ListOpenWorkflowExecutionsRequest;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
 import io.temporal.testing.TestWorkflowRule;
+import java.util.function.Predicate;
 import org.junit.Rule;
 import org.junit.Test;
 
 public class OrchestratorCICDImplTest {
 
   // set to true if you want to run the test against a real server
-  private final boolean useExternalService = false;
+  private final boolean useExternalService = true;
 
   @Rule public TestWorkflowRule testWorkflowRule = createTestRule().build();
 
@@ -33,7 +36,7 @@ public class OrchestratorCICDImplTest {
     final WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
 
     final WorkflowStub workflowStubStageA =
-        workflowClient.newUntypedWorkflowStub(StageA.BuildWorkflowId(workflowId));
+        workflowClient.newUntypedWorkflowStub(StageA.buildWorkflowId(workflowId));
 
     // Wait for stageA to start
     waitUntilExecutionIsInStatus(
@@ -51,7 +54,7 @@ public class OrchestratorCICDImplTest {
         workflowStubStageA.getExecution());
 
     WorkflowStub workflowStubStageB =
-        workflowClient.newUntypedWorkflowStub(StageB.BuildWorkflowId(workflowId));
+        workflowClient.newUntypedWorkflowStub(StageB.buildWorkflowId(workflowId));
 
     // Wait for stageB to start
     waitUntilExecutionIsInStatus(
@@ -78,31 +81,6 @@ public class OrchestratorCICDImplTest {
     testWorkflowRule.getTestEnvironment().shutdown();
   }
 
-  private OrchestratorCICD createWorkflowStub(String workflowId, WorkflowClient workflowClient) {
-    final WorkflowOptions options =
-        WorkflowOptions.newBuilder()
-            .setTaskQueue(testWorkflowRule.getTaskQueue())
-            .setWorkflowId(workflowId)
-            .build();
-    final OrchestratorCICD orchestratorCICD =
-        workflowClient.newWorkflowStub(OrchestratorCICD.class, options);
-    return orchestratorCICD;
-  }
-
-  private void waitUntilExecutionIsInStatus(
-      String namespace,
-      WorkflowExecutionStatus workflowExecutionStatusRunning,
-      WorkflowExecution executionB) {
-    waitUntilTrue(
-        new Awaitable(
-            () -> {
-              return workflowExecutionStatusRunning.equals(
-                  describeWorkflowExecution(executionB, namespace)
-                      .getWorkflowExecutionInfo()
-                      .getStatus());
-            }));
-  }
-
   @Test(timeout = 4000)
   public void testRetryStageB() {
     String namespace = testWorkflowRule.getTestEnvironment().getNamespace();
@@ -116,7 +94,7 @@ public class OrchestratorCICDImplTest {
     final WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
 
     final WorkflowStub workflowStubStageA =
-        workflowClient.newUntypedWorkflowStub(StageA.BuildWorkflowId(workflowId));
+        workflowClient.newUntypedWorkflowStub(StageA.buildWorkflowId(workflowId));
 
     // Wait for stageA to start
     waitUntilExecutionIsInStatus(
@@ -135,7 +113,8 @@ public class OrchestratorCICDImplTest {
 
     // Wait for stageB to start
     WorkflowStub workflowStubStageB =
-        workflowClient.newUntypedWorkflowStub(StageB.BuildWorkflowId(workflowId));
+        workflowClient.newUntypedWorkflowStub(StageB.buildWorkflowId(workflowId));
+
     waitUntilExecutionIsInStatus(
         namespace,
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
@@ -143,13 +122,43 @@ public class OrchestratorCICDImplTest {
 
     orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBRequest(STATUS_KO));
 
-    // wait stageB to change its status from running
+    // wait stageB to change its status !running
     OrchestratorCICD.OrchestratorCICDImpl.StagesDescription.StageDescription stageBDescription =
         workflowClient
             .newWorkflowStub(OrchestratorCICD.class, workflowId)
             .stagesDescription()
             .getStageBDescription();
 
+    waitUntilTrue(
+        new Awaitable(
+            new Awaitable.Condition() {
+              @Override
+              public boolean check() {
+
+                Predicate<WorkflowExecutionInfo> filterWorkflowExecutionStageB =
+                    l -> {
+                      return l.getExecution()
+                          .getWorkflowId()
+                          .equals(StageB.buildWorkflowId(workflowId));
+                    };
+
+                WorkflowExecutionInfo firstStageBWorkflowExecution =
+                    workflowClient
+                        .getWorkflowServiceStubs()
+                        .blockingStub()
+                        .listOpenWorkflowExecutions(
+                            ListOpenWorkflowExecutionsRequest.newBuilder()
+                                .setNamespace(namespace)
+                                .build())
+                        .getExecutionsList()
+                        .stream()
+                        .filter(filterWorkflowExecutionStageB)
+                        .findFirst()
+                        .get();
+
+                return firstStageBWorkflowExecution != null;
+              }
+            }));
     waitUntilTrue(
         new Awaitable(
             () -> {
@@ -200,6 +209,31 @@ public class OrchestratorCICDImplTest {
     testWorkflowRule.getTestEnvironment().shutdown();
   }
 
+  private OrchestratorCICD createWorkflowStub(String workflowId, WorkflowClient workflowClient) {
+    final WorkflowOptions options =
+        WorkflowOptions.newBuilder()
+            .setTaskQueue(testWorkflowRule.getTaskQueue())
+            .setWorkflowId(workflowId)
+            .build();
+    final OrchestratorCICD orchestratorCICD =
+        workflowClient.newWorkflowStub(OrchestratorCICD.class, options);
+    return orchestratorCICD;
+  }
+
+  private void waitUntilExecutionIsInStatus(
+      String namespace,
+      WorkflowExecutionStatus workflowExecutionStatus,
+      WorkflowExecution executionB) {
+    waitUntilTrue(
+        new Awaitable(
+            () -> {
+              return workflowExecutionStatus.equals(
+                  describeWorkflowExecution(executionB, namespace)
+                      .getWorkflowExecutionInfo()
+                      .getStatus());
+            }));
+  }
+
   private void waitUntilTrue(Awaitable r) {
     r.returnWhenTrue();
   }
@@ -225,6 +259,25 @@ public class OrchestratorCICDImplTest {
     return result;
   }
 
+  private TestWorkflowRule.Builder createTestRule() {
+    TestWorkflowRule.Builder builder =
+        TestWorkflowRule.newBuilder()
+            .setWorkflowTypes(
+                OrchestratorCICD.OrchestratorCICDImpl.class,
+                StageB.StageBImpl.class,
+                StageA.StageAImpl.class)
+            .setDoNotStart(true);
+
+    if (useExternalService) {
+      builder
+          .setUseExternalService(useExternalService)
+          .setTarget("127.0.0.1:7233") // default 127.0.0.1:7233
+          .setNamespace("default"); // default
+    }
+
+    return builder;
+  }
+
   public static class Awaitable {
 
     private final Condition condition;
@@ -233,7 +286,7 @@ public class OrchestratorCICDImplTest {
       this.condition = condition;
     }
 
-    public void returnWhenTrue() {
+    public <T> void returnWhenTrue() {
       while (true) {
         try {
           final boolean result = this.condition.check();
@@ -254,24 +307,5 @@ public class OrchestratorCICDImplTest {
     interface Condition {
       boolean check();
     }
-  }
-
-  private TestWorkflowRule.Builder createTestRule() {
-    TestWorkflowRule.Builder builder =
-        TestWorkflowRule.newBuilder()
-            .setWorkflowTypes(
-                OrchestratorCICD.OrchestratorCICDImpl.class,
-                StageB.StageBImpl.class,
-                StageA.StageAImpl.class)
-            .setDoNotStart(true);
-
-    if (useExternalService) {
-      builder
-          .setUseExternalService(useExternalService)
-          .setTarget("127.0.0.1:7233") // default 127.0.0.1:7233
-          .setNamespace("default"); // default
-    }
-
-    return builder;
   }
 }
