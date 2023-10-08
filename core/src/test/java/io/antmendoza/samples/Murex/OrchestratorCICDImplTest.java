@@ -187,9 +187,7 @@ public class OrchestratorCICDImplTest {
     orchestratorCICD.manualVerificationStageB(
         new StageB.VerificationStageBStatus(RETRY_FROM_STAGE_A));
 
-    //    ---
-
-    // we expect a new workflow type stageA
+    // we expect another workflow type stageA
     waitUntilTrue(
         new Awaitable(
             () ->
@@ -206,7 +204,46 @@ public class OrchestratorCICDImplTest {
 
     orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBStatus(STATUS_OK));
 
-    //            ---
+    // wait for main workflow to complete
+    workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);
+    assertEquals(
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
+        describeWorkflowExecution(execution, namespace).getWorkflowExecutionInfo().getStatus());
+  }
+
+  @Test(timeout = 4000)
+  public void testCancelStageB() {
+    String namespace = testWorkflowRule.getTestEnvironment().getNamespace();
+
+    testWorkflowRule.getTestEnvironment().start();
+
+    final WorkflowClient workflowClient = testWorkflowRule.getWorkflowClient();
+    final String workflowId = "my-orchestrator-" + Math.random();
+    final OrchestratorCICD orchestratorCICD = createWorkflowStub(workflowId, workflowClient);
+
+    final WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
+
+    final WorkflowStub workflowStubStageA =
+        workflowClient.newUntypedWorkflowStub(StageA.buildWorkflowId(workflowId));
+
+    // Wait for stageA to start
+    waitUntilTrue(
+        new Awaitable(
+            () ->
+                testUtilInterceptorTracker.hasNewWorkflowInvocationTimes(
+                    StageA.class.getSimpleName(), 1)));
+    orchestratorCICD.manualVerificationStageA(new StageA.VerificationStageARequest());
+
+    // wait stageA to complete
+    workflowStubStageA.getResult(Void.class);
+
+    // Wait for stageB to start
+    waitUntilExecutionIsInStatus(
+        namespace,
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
+        workflowClient.newUntypedWorkflowStub(StageB.buildWorkflowId(workflowId)).getExecution());
+
+    workflowClient.newUntypedWorkflowStub(StageB.buildWorkflowId(workflowId)).cancel();
 
     // wait for main workflow to complete
     workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);

@@ -18,4 +18,10 @@ public class TestUtilWorkflowOutboundCallsInterceptor extends WorkflowOutboundCa
     this.testUtilInterceptorTracker.trackContinueAsNewInvocation(input);
     super.continueAsNew(input);
   }
+
+  @Override
+  public CancelWorkflowOutput cancelWorkflow(CancelWorkflowInput input) {
+    this.testUtilInterceptorTracker.trackCancelWorkflow(input);
+    return super.cancelWorkflow(input);
+  }
 }

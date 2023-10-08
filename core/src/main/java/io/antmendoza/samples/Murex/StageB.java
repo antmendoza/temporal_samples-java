@@ -37,7 +37,7 @@ public interface StageB {
 
       Workflow.await(() -> verificationStageBStatus != null);
 
-      if (verificationStageBStatus.isRetryStage()) {
+      if (verificationStageBStatus.retryStage()) {
         Workflow.continueAsNew(
             StageB.class.getSimpleName(),
             ContinueAsNewOptions.newBuilder().build(),
@@ -72,12 +72,12 @@ public interface StageB {
     }
 
     @JsonIgnore
-    public boolean isRetryStage() {
+    public boolean retryStage() {
       return this.value.equals(STATUS_KO);
     }
 
     @JsonIgnore
-    public boolean isRetryFromStageA() {
+    public boolean retryFromStageA() {
       return this.value.equals(RETRY_FROM_STAGE_A);
     }
 

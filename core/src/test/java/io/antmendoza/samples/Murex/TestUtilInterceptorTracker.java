@@ -8,6 +8,9 @@ import java.util.List;
 public class TestUtilInterceptorTracker {
   private List<WorkflowOutboundCallsInterceptor.ContinueAsNewInput> continueAsNewInvocations =
       new ArrayList<>();
+
+  private List<WorkflowOutboundCallsInterceptor.CancelWorkflowInput> cancelWorkflow =
+      new ArrayList<>();
   private List<NewWorkflowInvocation> newInvocations = new ArrayList<>();
 
   public void trackContinueAsNewInvocation(
@@ -29,6 +32,10 @@ public class TestUtilInterceptorTracker {
 
   public void trackNewWorkflowInvocation(NewWorkflowInvocation newWorkflowInvocation) {
     this.newInvocations.add(newWorkflowInvocation);
+  }
+
+  public void trackCancelWorkflow(WorkflowOutboundCallsInterceptor.CancelWorkflowInput input) {
+    this.cancelWorkflow.add(input);
   }
 
   public static class NewWorkflowInvocation {
