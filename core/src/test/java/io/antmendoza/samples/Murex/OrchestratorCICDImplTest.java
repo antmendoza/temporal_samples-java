@@ -13,6 +13,7 @@ import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
 import io.temporal.testing.TestWorkflowRule;
+import io.temporal.worker.WorkerFactoryOptions;
 import java.util.function.Predicate;
 import org.junit.Rule;
 import org.junit.Test;
@@ -262,6 +263,10 @@ public class OrchestratorCICDImplTest {
   private TestWorkflowRule.Builder createTestRule() {
     TestWorkflowRule.Builder builder =
         TestWorkflowRule.newBuilder()
+            .setWorkerFactoryOptions(
+                WorkerFactoryOptions.newBuilder()
+                    .setWorkerInterceptors(new TestUtilWorkerInterceptor())
+                    .build())
             .setWorkflowTypes(
                 OrchestratorCICD.OrchestratorCICDImpl.class,
                 StageB.StageBImpl.class,

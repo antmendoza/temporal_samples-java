@@ -2,10 +2,7 @@ package io.antmendoza.samples.Murex;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import io.temporal.workflow.SignalMethod;
-import io.temporal.workflow.Workflow;
-import io.temporal.workflow.WorkflowInterface;
-import io.temporal.workflow.WorkflowMethod;
+import io.temporal.workflow.*;
 
 @WorkflowInterface
 public interface StageB {
@@ -22,6 +19,8 @@ public interface StageB {
 
   class StageBRequest {
     public final String id = "";
+
+    public StageBRequest() {}
   }
 
   class StageBImpl implements StageB {
@@ -41,7 +40,10 @@ public interface StageB {
       if (verificationStageBRequest.isRetryStage()) {
         System.out.println("continue as new   StageBRequest");
 
-        Workflow.continueAsNew(new StageBRequest());
+        Workflow.continueAsNew(
+            StageB.class.getSimpleName(),
+            ContinueAsNewOptions.newBuilder().build(),
+            new StageBRequest());
       }
     }
 
