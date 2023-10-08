@@ -114,34 +114,36 @@ public class OrchestratorCICDImplTest {
             .getStatus());
 
     // Wait for stageB to start
-    WorkflowStub workflowStubStageB =
-        workflowClient.newUntypedWorkflowStub(StageB.buildWorkflowId(workflowId));
-
     waitUntilExecutionIsInStatus(
         namespace,
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
-        workflowStubStageB.getExecution());
+        workflowClient.newUntypedWorkflowStub(StageB.buildWorkflowId(workflowId)).getExecution());
 
     orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBRequest(STATUS_KO));
 
-    // wait stageB to change its status !running
+    // wait stageB to change its status to continueAsNew
     waitUntilTrue(
         new Awaitable(
             () ->
                 testUtilInterceptorTracker.hasContinuedAsNewTimes(
                     StageB.class.getSimpleName(), 1)));
 
-    // new child type stageB is created
+    // new stageB is created
     waitUntilTrue(
         new Awaitable(
             () ->
                 testUtilInterceptorTracker.hasNewWorkflowInvocationTimes(
                     StageB.class.getSimpleName(), 2)));
 
-    // signal de new child workflow
+    waitUntilExecutionIsInStatus(
+        namespace,
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
+        workflowClient.newUntypedWorkflowStub(StageB.buildWorkflowId(workflowId)).getExecution());
+
+    // signal stageB to complete
     orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBRequest(STATUS_OK));
 
-    // wait for main workflow to continueAsNew
+    // wait for main workflow to complete
     workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);
     assertEquals(
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
