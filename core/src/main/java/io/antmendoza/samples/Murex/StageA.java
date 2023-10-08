@@ -4,6 +4,7 @@ import io.temporal.workflow.SignalMethod;
 import io.temporal.workflow.Workflow;
 import io.temporal.workflow.WorkflowInterface;
 import io.temporal.workflow.WorkflowMethod;
+import org.slf4j.Logger;
 
 @WorkflowInterface
 public interface StageA {
@@ -23,11 +24,14 @@ public interface StageA {
   }
 
   class StageAImpl implements StageA {
+    private final Logger log = Workflow.getLogger("StageAImpl");
 
     private VerificationStageARequest verificationStageARequest;
 
     @Override
     public void run(StageARequest request) {
+
+      log.info("Starting with runId:" + Workflow.getInfo().getRunId());
 
       Workflow.await(() -> verificationStageARequest != null);
     }

@@ -33,7 +33,7 @@ public interface OrchestratorCICD {
     public void run(OrchestratorRequest request) {
 
       String workflowId = getWorkflowId();
-      log.info("Starting workflow " + workflowId);
+      log.info("Starting with runId:" + Workflow.getInfo().getRunId());
 
       {
         stageA =

@@ -15,11 +15,7 @@ public class TestUtilWorkflowOutboundCallsInterceptor extends WorkflowOutboundCa
 
   @Override
   public void continueAsNew(ContinueAsNewInput input) {
-
     this.testUtilInterceptorTracker.trackContinueAsNewInvocation(input);
-
-    System.out.println(">>>>>>>>>> " + input.getWorkflowType());
-
     super.continueAsNew(input);
   }
 }

@@ -3,6 +3,7 @@ package io.antmendoza.samples.Murex;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.temporal.workflow.*;
+import org.slf4j.Logger;
 
 @WorkflowInterface
 public interface StageB {
@@ -24,12 +25,15 @@ public interface StageB {
   }
 
   class StageBImpl implements StageB {
+
+    private final Logger log = Workflow.getLogger("StageBImpl");
+
     private VerificationStageBRequest verificationStageBRequest;
 
     @Override
     public void run(StageBRequest stageBRequest) {
 
-      System.out.println("start  StageBRequest" + Workflow.getInfo().getRunId());
+      log.info("Starting with runId:" + Workflow.getInfo().getRunId());
 
       Workflow.await(() -> verificationStageBRequest != null);
 
@@ -38,8 +42,6 @@ public interface StageB {
       }
 
       if (verificationStageBRequest.isRetryStage()) {
-        System.out.println("continue as new   StageBRequest");
-
         Workflow.continueAsNew(
             StageB.class.getSimpleName(),
             ContinueAsNewOptions.newBuilder().build(),
