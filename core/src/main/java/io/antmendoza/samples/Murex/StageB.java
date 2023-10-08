@@ -55,7 +55,7 @@ public interface StageB {
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   class VerificationStageBStatus {
-    public static final String RETRY_FROM_STAGE_A = "RETRY_STAGE_A";
+    public static final String RETRY_FROM_STAGE_A = "RETRY_FROM_STAGE_A";
     public static final String STATUS_OK = "STATUS_OK";
     public static final String STATUS_KO = "STATUS_KO";
     private String value;
