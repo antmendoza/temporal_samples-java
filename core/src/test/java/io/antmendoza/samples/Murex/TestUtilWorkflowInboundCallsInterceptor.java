@@ -3,19 +3,31 @@ package io.antmendoza.samples.Murex;
 import io.temporal.common.interceptors.WorkflowInboundCallsInterceptor;
 import io.temporal.common.interceptors.WorkflowInboundCallsInterceptorBase;
 import io.temporal.common.interceptors.WorkflowOutboundCallsInterceptor;
+import io.temporal.workflow.Workflow;
+import io.temporal.workflow.WorkflowInfo;
 
 public class TestUtilWorkflowInboundCallsInterceptor extends WorkflowInboundCallsInterceptorBase {
-  public TestUtilWorkflowInboundCallsInterceptor(WorkflowInboundCallsInterceptor next) {
+  private TestUtilInterceptorTracker testUtilInterceptorTracker;
+
+  public TestUtilWorkflowInboundCallsInterceptor(
+      WorkflowInboundCallsInterceptor next, TestUtilInterceptorTracker testUtilInterceptorTracker) {
     super(next);
+    this.testUtilInterceptorTracker = testUtilInterceptorTracker;
   }
 
   @Override
   public void init(WorkflowOutboundCallsInterceptor outboundCalls) {
-    super.init(new TestUtilWorkflowOutboundCallsInterceptor(outboundCalls));
+    super.init(
+        new TestUtilWorkflowOutboundCallsInterceptor(outboundCalls, testUtilInterceptorTracker));
   }
 
   @Override
   public WorkflowOutput execute(WorkflowInput input) {
+
+    WorkflowInfo info = Workflow.getInfo();
+    String workflowType = info.getWorkflowType();
+    testUtilInterceptorTracker.trackNewWorkflowInvocation(
+        new TestUtilInterceptorTracker.NewWorkflowInvocation(workflowType, input));
     return super.execute(input);
   }
 

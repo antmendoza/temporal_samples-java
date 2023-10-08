@@ -5,25 +5,28 @@ import static org.junit.Assert.assertEquals;
 
 import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.api.enums.v1.WorkflowExecutionStatus;
-import io.temporal.api.workflow.v1.WorkflowExecutionInfo;
 import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionRequest;
 import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse;
-import io.temporal.api.workflowservice.v1.ListOpenWorkflowExecutionsRequest;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
 import io.temporal.testing.TestWorkflowRule;
 import io.temporal.worker.WorkerFactoryOptions;
-import java.util.function.Predicate;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 
 public class OrchestratorCICDImplTest {
 
+  private static final TestUtilInterceptorTracker testUtilInterceptorTracker =
+      new TestUtilInterceptorTracker();
   // set to true if you want to run the test against a real server
   private final boolean useExternalService = true;
-
   @Rule public TestWorkflowRule testWorkflowRule = createTestRule().build();
+
+  @After
+  public void after() {
+
+    testWorkflowRule.getTestEnvironment().shutdown();
+  }
 
   @Test(timeout = 2000)
   public void testExecuteTwoStagesAndSignalStages() {
@@ -78,8 +81,6 @@ public class OrchestratorCICDImplTest {
     assertEquals(
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
         describeWorkflowExecution(execution, namespace).getWorkflowExecutionInfo().getStatus());
-
-    testWorkflowRule.getTestEnvironment().shutdown();
   }
 
   @Test(timeout = 4000)
@@ -124,79 +125,18 @@ public class OrchestratorCICDImplTest {
     orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBRequest(STATUS_KO));
 
     // wait stageB to change its status !running
-    OrchestratorCICD.OrchestratorCICDImpl.StagesDescription.StageDescription stageBDescription =
-        workflowClient
-            .newWorkflowStub(OrchestratorCICD.class, workflowId)
-            .stagesDescription()
-            .getStageBDescription();
-
     waitUntilTrue(
         new Awaitable(
-            new Awaitable.Condition() {
-              @Override
-              public boolean check() {
+            () ->
+                testUtilInterceptorTracker.hasContinuedAsNewTimes(
+                    StageB.class.getSimpleName(), 1)));
 
-                Predicate<WorkflowExecutionInfo> filterWorkflowExecutionStageB =
-                    l -> {
-                      return l.getExecution()
-                          .getWorkflowId()
-                          .equals(StageB.buildWorkflowId(workflowId));
-                    };
-
-                WorkflowExecutionInfo firstStageBWorkflowExecution =
-                    workflowClient
-                        .getWorkflowServiceStubs()
-                        .blockingStub()
-                        .listOpenWorkflowExecutions(
-                            ListOpenWorkflowExecutionsRequest.newBuilder()
-                                .setNamespace(namespace)
-                                .build())
-                        .getExecutionsList()
-                        .stream()
-                        .filter(filterWorkflowExecutionStageB)
-                        .findFirst()
-                        .get();
-
-                return firstStageBWorkflowExecution != null;
-              }
-            }));
+    // new child type stageB is created
     waitUntilTrue(
         new Awaitable(
-            () -> {
-              WorkflowExecutionStatus status =
-                  describeWorkflowExecution(
-                          WorkflowExecution.newBuilder()
-                              .setWorkflowId(stageBDescription.getWorkflowId())
-                              .setRunId(stageBDescription.getRunId())
-                              .build(),
-                          namespace)
-                      .getWorkflowExecutionInfo()
-                      .getStatus();
-
-              return !WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING.equals(status);
-            }));
-
-    assertEquals(
-        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW,
-        describeWorkflowExecution(
-                WorkflowExecution.newBuilder()
-                    .setWorkflowId(stageBDescription.getWorkflowId())
-                    .setRunId(stageBDescription.getRunId())
-                    .build(),
-                namespace)
-            .getWorkflowExecutionInfo()
-            .getStatus());
-
-    // new child workflow is created
-    assertEquals(
-        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
-        describeWorkflowExecution(
-                WorkflowExecution.newBuilder()
-                    .setWorkflowId(stageBDescription.getWorkflowId())
-                    .build(),
-                namespace)
-            .getWorkflowExecutionInfo()
-            .getStatus());
+            () ->
+                testUtilInterceptorTracker.hasNewWorkflowInvocationTimes(
+                    StageB.class.getSimpleName(), 2)));
 
     // signal de new child workflow
     orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBRequest(STATUS_OK));
@@ -206,8 +146,6 @@ public class OrchestratorCICDImplTest {
     assertEquals(
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
         describeWorkflowExecution(execution, namespace).getWorkflowExecutionInfo().getStatus());
-
-    testWorkflowRule.getTestEnvironment().shutdown();
   }
 
   private OrchestratorCICD createWorkflowStub(String workflowId, WorkflowClient workflowClient) {
@@ -265,7 +203,8 @@ public class OrchestratorCICDImplTest {
         TestWorkflowRule.newBuilder()
             .setWorkerFactoryOptions(
                 WorkerFactoryOptions.newBuilder()
-                    .setWorkerInterceptors(new TestUtilWorkerInterceptor())
+                    .setWorkerInterceptors(
+                        new TestUtilWorkerInterceptor(testUtilInterceptorTracker))
                     .build())
             .setWorkflowTypes(
                 OrchestratorCICD.OrchestratorCICDImpl.class,
