@@ -13,10 +13,10 @@ public interface StageB {
   }
 
   @WorkflowMethod
-  void run(StageBRequest stageBRequest);
+  StageBResult run(StageBRequest stageBRequest);
 
   @SignalMethod
-  void manualVerificationStageB(VerificationStageBRequest verificationStageBRequest);
+  void manualVerificationStageB(VerificationStageBStatus verificationStageBStatus);
 
   class StageBRequest {
     public final String id = "";
@@ -28,43 +28,41 @@ public interface StageB {
 
     private final Logger log = Workflow.getLogger("StageBImpl");
 
-    private VerificationStageBRequest verificationStageBRequest;
+    private VerificationStageBStatus verificationStageBStatus;
 
     @Override
-    public void run(StageBRequest stageBRequest) {
+    public StageBResult run(StageBRequest stageBRequest) {
 
       log.info("Starting with runId:" + Workflow.getInfo().getRunId());
 
-      Workflow.await(() -> verificationStageBRequest != null);
+      Workflow.await(() -> verificationStageBStatus != null);
 
-      if (verificationStageBRequest.isVerificationOk()) {
-        return;
-      }
-
-      if (verificationStageBRequest.isRetryStage()) {
+      if (verificationStageBStatus.isRetryStage()) {
         Workflow.continueAsNew(
             StageB.class.getSimpleName(),
             ContinueAsNewOptions.newBuilder().build(),
             new StageBRequest());
       }
+
+      return new StageBResult(verificationStageBStatus);
     }
 
     @Override
-    public void manualVerificationStageB(VerificationStageBRequest verificationStageBRequest) {
-      this.verificationStageBRequest = verificationStageBRequest;
+    public void manualVerificationStageB(VerificationStageBStatus verificationStageBStatus) {
+      this.verificationStageBStatus = verificationStageBStatus;
     }
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
-  class VerificationStageBRequest {
-    public static final String RETRY_STAGE_A = "RETRY_STAGE_A";
+  class VerificationStageBStatus {
+    public static final String RETRY_FROM_STAGE_A = "RETRY_STAGE_A";
     public static final String STATUS_OK = "STATUS_OK";
     public static final String STATUS_KO = "STATUS_KO";
     private String value;
 
-    public VerificationStageBRequest() {}
+    public VerificationStageBStatus() {}
 
-    public VerificationStageBRequest(String value) {
+    public VerificationStageBStatus(String value) {
       this.value = value;
     }
 
@@ -76,6 +74,30 @@ public interface StageB {
     @JsonIgnore
     public boolean isRetryStage() {
       return this.value.equals(STATUS_KO);
+    }
+
+    @JsonIgnore
+    public boolean isRetryFromStageA() {
+      return this.value.equals(RETRY_FROM_STAGE_A);
+    }
+
+    @Override
+    public String toString() {
+      return "VerificationStageBStatus{" + "value='" + value + '\'' + '}';
+    }
+  }
+
+  public class StageBResult {
+    private VerificationStageBStatus verificationStageBStatus;
+
+    public StageBResult() {}
+
+    public StageBResult(VerificationStageBStatus verificationStageBStatus) {
+      this.verificationStageBStatus = verificationStageBStatus;
+    }
+
+    public VerificationStageBStatus getVerificationStageBStatus() {
+      return verificationStageBStatus;
     }
   }
 }

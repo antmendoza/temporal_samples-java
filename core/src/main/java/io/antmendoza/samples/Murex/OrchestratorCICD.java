@@ -1,5 +1,7 @@
 package io.antmendoza.samples.Murex;
 
+import io.antmendoza.samples.Murex.StageB.StageBRequest;
+import io.antmendoza.samples.Murex.StageB.StageBResult;
 import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.workflow.*;
 import org.slf4j.Logger;
@@ -16,7 +18,7 @@ public interface OrchestratorCICD {
   void manualVerificationStageA(StageA.VerificationStageARequest request);
 
   @SignalMethod
-  void manualVerificationStageB(StageB.VerificationStageBRequest verificationStageBRequest);
+  void manualVerificationStageB(StageB.VerificationStageBStatus verificationStageBStatus);
 
   class OrchestratorCICDImpl implements OrchestratorCICD {
 
@@ -35,38 +37,55 @@ public interface OrchestratorCICD {
       String workflowId = getWorkflowId();
       log.info("Starting with runId:" + Workflow.getInfo().getRunId());
 
-      {
-        stageA =
-            Workflow.newChildWorkflowStub(
-                StageA.class,
-                ChildWorkflowOptions.newBuilder()
-                    .setWorkflowId(StageA.buildWorkflowId(workflowId))
-                    .build());
-        final Promise<Void> resultStageA = Async.procedure(stageA::run, new StageA.StageARequest());
-        final Promise<WorkflowExecution> childExecution = Workflow.getWorkflowExecution(stageA);
+      StageBResult stageBResult;
 
-        // Wait for child to start
-        WorkflowExecution stageAExecution = childExecution.get();
+      boolean iterate = true;
+      while (iterate) {
+        // TODO watch workflow history and continueAsNew when required
+        iterate = false;
 
-        // Wait for the stageA to complete
-        Promise.allOf(resultStageA).get();
-      }
+        {
+          stageA =
+              Workflow.newChildWorkflowStub(
+                  StageA.class,
+                  ChildWorkflowOptions.newBuilder()
+                      .setWorkflowId(StageA.buildWorkflowId(workflowId))
+                      .build());
+          final Promise<Void> resultStageA =
+              Async.procedure(stageA::run, new StageA.StageARequest());
+          final Promise<WorkflowExecution> childExecution = Workflow.getWorkflowExecution(stageA);
 
-      {
-        stageB =
-            Workflow.newChildWorkflowStub(
-                StageB.class,
-                ChildWorkflowOptions.newBuilder()
-                    .setWorkflowId(StageB.buildWorkflowId(workflowId))
-                    .build());
-        final Promise<Void> resultStageB = Async.procedure(stageB::run, new StageB.StageBRequest());
-        final Promise<WorkflowExecution> childExecution = Workflow.getWorkflowExecution(stageB);
+          // Wait for child to start
+          WorkflowExecution stageAExecution = childExecution.get();
 
-        // Wait for child to start
-        final WorkflowExecution stageBExecution = childExecution.get();
+          // Wait for the stageA to complete
+          Promise.allOf(resultStageA).get();
+        }
 
-        // Wait for the stageA to complete
-        Promise.allOf(resultStageB).get();
+        {
+          stageB =
+              Workflow.newChildWorkflowStub(
+                  StageB.class,
+                  ChildWorkflowOptions.newBuilder()
+                      .setWorkflowId(StageB.buildWorkflowId(workflowId))
+                      .build());
+          final Promise<StageBResult> resultStageB =
+              Async.function(stageB::run, new StageBRequest());
+          final Promise<WorkflowExecution> childExecution = Workflow.getWorkflowExecution(stageB);
+
+          // Wait for child to start
+          final WorkflowExecution stageBExecution = childExecution.get();
+
+          // Wait for the stageA to complete
+          Promise.allOf(resultStageB).get();
+
+          // TODO handle
+          stageBResult = resultStageB.get();
+
+          if (stageBResult.getVerificationStageBStatus().isRetryFromStageA()) {
+            iterate = true;
+          }
+        }
       }
     }
 
@@ -78,11 +97,10 @@ public interface OrchestratorCICD {
     }
 
     @Override
-    public void manualVerificationStageB(
-        StageB.VerificationStageBRequest verificationStageBRequest) {
+    public void manualVerificationStageB(StageB.VerificationStageBStatus verificationStageBStatus) {
 
       Workflow.newExternalWorkflowStub(StageB.class, StageB.buildWorkflowId(getWorkflowId()))
-          .manualVerificationStageB(verificationStageBRequest);
+          .manualVerificationStageB(verificationStageBStatus);
     }
   }
 

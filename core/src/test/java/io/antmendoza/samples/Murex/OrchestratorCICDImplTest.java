@@ -1,6 +1,6 @@
 package io.antmendoza.samples.Murex;
 
-import static io.antmendoza.samples.Murex.StageB.VerificationStageBRequest.*;
+import static io.antmendoza.samples.Murex.StageB.VerificationStageBStatus.*;
 import static org.junit.Assert.assertEquals;
 
 import io.temporal.api.common.v1.WorkflowExecution;
@@ -16,7 +16,7 @@ import org.junit.*;
 
 public class OrchestratorCICDImplTest {
 
-  private static final TestUtilInterceptorTracker testUtilInterceptorTracker =
+  private static TestUtilInterceptorTracker testUtilInterceptorTracker =
       new TestUtilInterceptorTracker();
   // set to true if you want to run the test against a real server
   private final boolean useExternalService = true;
@@ -24,8 +24,8 @@ public class OrchestratorCICDImplTest {
 
   @After
   public void after() {
-
     testWorkflowRule.getTestEnvironment().shutdown();
+    testUtilInterceptorTracker = new TestUtilInterceptorTracker();
   }
 
   @Test(timeout = 2000)
@@ -66,7 +66,7 @@ public class OrchestratorCICDImplTest {
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
         workflowStubStageB.getExecution());
 
-    orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBRequest(STATUS_OK));
+    orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBStatus(STATUS_OK));
 
     // wait stageB to complete
     workflowStubStageB.getResult(Void.class);
@@ -99,10 +99,12 @@ public class OrchestratorCICDImplTest {
         workflowClient.newUntypedWorkflowStub(StageA.buildWorkflowId(workflowId));
 
     // Wait for stageA to start
-    waitUntilExecutionIsInStatus(
-        namespace,
-        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
-        workflowStubStageA.getExecution());
+    waitUntilTrue(
+        new Awaitable(
+            () ->
+                testUtilInterceptorTracker.hasNewWorkflowInvocationTimes(
+                    StageA.class.getSimpleName(), 1)));
+
     orchestratorCICD.manualVerificationStageA(new StageA.VerificationStageARequest());
 
     // wait stageA to complete
@@ -119,7 +121,7 @@ public class OrchestratorCICDImplTest {
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
         workflowClient.newUntypedWorkflowStub(StageB.buildWorkflowId(workflowId)).getExecution());
 
-    orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBRequest(STATUS_KO));
+    orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBStatus(STATUS_KO));
 
     // wait stageB to change its status to continueAsNew
     waitUntilTrue(
@@ -135,13 +137,76 @@ public class OrchestratorCICDImplTest {
                 testUtilInterceptorTracker.hasNewWorkflowInvocationTimes(
                     StageB.class.getSimpleName(), 2)));
 
+    // signal stageB to complete
+    orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBStatus(STATUS_OK));
+
+    // wait for main workflow to complete
+    workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);
+    assertEquals(
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
+        describeWorkflowExecution(execution, namespace).getWorkflowExecutionInfo().getStatus());
+  }
+
+  @Test(timeout = 4000)
+  public void testRetryStageAFromStageB() {
+    String namespace = testWorkflowRule.getTestEnvironment().getNamespace();
+
+    testWorkflowRule.getTestEnvironment().start();
+
+    final WorkflowClient workflowClient = testWorkflowRule.getWorkflowClient();
+    final String workflowId = "my-orchestrator-" + Math.random();
+    final OrchestratorCICD orchestratorCICD = createWorkflowStub(workflowId, workflowClient);
+
+    final WorkflowExecution execution = WorkflowClient.start(orchestratorCICD::run, null);
+
+    final WorkflowStub workflowStubStageA =
+        workflowClient.newUntypedWorkflowStub(StageA.buildWorkflowId(workflowId));
+
+    // Wait for stageA to start
+    waitUntilTrue(
+        new Awaitable(
+            () ->
+                testUtilInterceptorTracker.hasNewWorkflowInvocationTimes(
+                    StageA.class.getSimpleName(), 1)));
+    orchestratorCICD.manualVerificationStageA(new StageA.VerificationStageARequest());
+
+    // wait stageA to complete
+    workflowStubStageA.getResult(Void.class);
+    assertEquals(
+        WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_COMPLETED,
+        describeWorkflowExecution(workflowStubStageA.getExecution(), namespace)
+            .getWorkflowExecutionInfo()
+            .getStatus());
+
+    // Wait for stageB to start
     waitUntilExecutionIsInStatus(
         namespace,
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING,
         workflowClient.newUntypedWorkflowStub(StageB.buildWorkflowId(workflowId)).getExecution());
 
-    // signal stageB to complete
-    orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBRequest(STATUS_OK));
+    orchestratorCICD.manualVerificationStageB(
+        new StageB.VerificationStageBStatus(RETRY_FROM_STAGE_A));
+
+    //    ---
+
+    // we expect a new workflow type stageA
+    waitUntilTrue(
+        new Awaitable(
+            () ->
+                testUtilInterceptorTracker.hasNewWorkflowInvocationTimes(
+                    StageA.class.getSimpleName(), 2)));
+
+    orchestratorCICD.manualVerificationStageA(new StageA.VerificationStageARequest());
+
+    waitUntilTrue(
+        new Awaitable(
+            () ->
+                testUtilInterceptorTracker.hasNewWorkflowInvocationTimes(
+                    StageB.class.getSimpleName(), 2)));
+
+    orchestratorCICD.manualVerificationStageB(new StageB.VerificationStageBStatus(STATUS_OK));
+
+    //            ---
 
     // wait for main workflow to complete
     workflowClient.newUntypedWorkflowStub(workflowId).getResult(Void.class);
