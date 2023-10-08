@@ -166,9 +166,6 @@ public class OrchestratorCICDImplTest {
               return !WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_RUNNING.equals(status);
             }));
 
-
-
-
     assertEquals(
         WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW,
         describeWorkflowExecution(
@@ -179,7 +176,6 @@ public class OrchestratorCICDImplTest {
                 namespace)
             .getWorkflowExecutionInfo()
             .getStatus());
-
 
     // new child workflow is created
     assertEquals(
