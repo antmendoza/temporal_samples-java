@@ -20,7 +20,7 @@ public class OrchestratorCICDImplTest {
       new TestUtilInterceptorTracker();
 
   // set to true if you want to run the test against a real server
-  private final boolean useExternalService = true;
+  private final boolean useExternalService = false;
   @Rule public TestWorkflowRule testWorkflowRule = createTestRule().build();
 
   @After
