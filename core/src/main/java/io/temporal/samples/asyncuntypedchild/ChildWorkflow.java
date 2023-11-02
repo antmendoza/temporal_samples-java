@@ -17,14 +17,24 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.springboot;
+package io.temporal.samples.asyncuntypedchild;
 
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import io.temporal.workflow.WorkflowInterface;
+import io.temporal.workflow.WorkflowMethod;
 
-@SpringBootApplication
-public class TemporalSpringbootSamplesApplication {
-  public static void main(String[] args) {
-    SpringApplication.run(TemporalSpringbootSamplesApplication.class, args);
-  }
+/**
+ * Define the child workflow Interface. It must contain one method annotated with @WorkflowMethod
+ *
+ * @see WorkflowInterface
+ * @see WorkflowMethod
+ */
+@WorkflowInterface
+public interface ChildWorkflow {
+
+  /**
+   * Define the child workflow method. This method is executed when the workflow is started. The
+   * workflow completes when the workflow method finishes execution.
+   */
+  @WorkflowMethod
+  String composeGreeting(String greeting, String name);
 }

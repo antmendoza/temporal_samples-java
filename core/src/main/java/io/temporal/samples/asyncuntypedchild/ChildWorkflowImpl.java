@@ -17,14 +17,24 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.springboot;
+package io.temporal.samples.asyncuntypedchild;
 
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import io.temporal.workflow.Workflow;
 
-@SpringBootApplication
-public class TemporalSpringbootSamplesApplication {
-  public static void main(String[] args) {
-    SpringApplication.run(TemporalSpringbootSamplesApplication.class, args);
+/**
+ * Define the parent workflow implementation. It implements the getGreeting workflow method
+ *
+ * <p>Note that a workflow implementation must always be public for the Temporal library to be able
+ * to create its instances.
+ */
+public class ChildWorkflowImpl implements ChildWorkflow {
+
+  @Override
+  public String composeGreeting(String greeting, String name) {
+
+    // Sleep for 2 seconds to ensure the child completes after the parent.
+    Workflow.sleep(2000);
+
+    return greeting + " " + name + "!";
   }
 }
