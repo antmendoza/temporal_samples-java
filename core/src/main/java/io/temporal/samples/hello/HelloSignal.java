@@ -19,19 +19,15 @@
 
 package io.temporal.samples.hello;
 
-import io.temporal.activity.ActivityOptions;
 import io.temporal.client.WorkflowClient;
-import io.temporal.client.WorkflowClientOptions;
+import io.temporal.client.WorkflowOptions;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
-import io.temporal.worker.WorkerFactoryOptions;
-import io.temporal.worker.WorkerOptions;
 import io.temporal.workflow.SignalMethod;
 import io.temporal.workflow.Workflow;
 import io.temporal.workflow.WorkflowInterface;
 import io.temporal.workflow.WorkflowMethod;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -80,11 +76,6 @@ public class HelloSignal {
   // Define the workflow implementation which implements the getGreetings workflow method.
   public static class GreetingWorkflowImpl implements GreetingWorkflow {
 
-    private final HelloActivity.GreetingActivities activities =
-        Workflow.newActivityStub(
-            HelloActivity.GreetingActivities.class,
-            ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(2)).build());
-
     // messageQueue holds up to 10 messages (received from signals)
     List<String> messageQueue = new ArrayList<>(10);
     boolean exit = false;
@@ -98,12 +89,6 @@ public class HelloSignal {
         Workflow.await(() -> !messageQueue.isEmpty() || exit);
         if (messageQueue.isEmpty() && exit) {
           // no messages in queue and exit signal was sent, return the received messages
-
-          System.out.println("before sleep ... ");
-          Workflow.sleep(Duration.ofSeconds(20));
-
-          Workflow.sleep(Duration.ofSeconds(2));
-
           return receivedMessages;
         }
         String message = messageQueue.remove(0);
@@ -113,11 +98,6 @@ public class HelloSignal {
 
     @Override
     public void waitForName(String name) {
-
-      Workflow.sleep(Duration.ofSeconds(1));
-
-      // activities.composeGreeting(name, name);
-
       messageQueue.add("Hello " + name + "!");
     }
 
@@ -139,21 +119,18 @@ public class HelloSignal {
     /*
      * Get a Workflow service client which can be used to start, Signal, and Query Workflow Executions.
      */
-    WorkflowClient client =
-        WorkflowClient.newInstance(
-            service, WorkflowClientOptions.newBuilder().setIdentity("" + Math.random()).build());
+    WorkflowClient client = WorkflowClient.newInstance(service);
 
     /*
      * Define the workflow factory. It is used to create workflow workers for a specific task queue.
      */
-    WorkerFactory factory =
-        WorkerFactory.newInstance(client, WorkerFactoryOptions.newBuilder().build());
+    WorkerFactory factory = WorkerFactory.newInstance(client);
 
     /*
      * Define the workflow worker. Workflow workers listen to a defined task queue and process
      * workflows and activities.
      */
-    Worker worker = factory.newWorker(TASK_QUEUE, WorkerOptions.newBuilder().build());
+    Worker worker = factory.newWorker(TASK_QUEUE);
 
     /*
      * Register the workflow implementation with the worker.
@@ -161,7 +138,6 @@ public class HelloSignal {
      * order to dispatch workflow tasks.
      */
     worker.registerWorkflowImplementationTypes(GreetingWorkflowImpl.class);
-    worker.registerActivitiesImplementations(new HelloActivity.GreetingActivitiesImpl());
 
     /*
      * Start all the workers registered for a specific task queue.
@@ -169,62 +145,49 @@ public class HelloSignal {
      */
     factory.start();
 
-    //    // Create the workflow options
-    //    WorkflowOptions workflowOptions =
-    //
-    // WorkflowOptions.newBuilder().setTaskQueue(TASK_QUEUE).setWorkflowId(WORKFLOW_ID).build();
-    //
-    //    // Create the workflow client stub. It is used to start the workflow execution.
-    //    GreetingWorkflow workflow = client.newWorkflowStub(GreetingWorkflow.class,
-    // workflowOptions);
-    //
-    //    // Start workflow asynchronously and call its getGreeting workflow method
-    //    WorkflowClient.start(workflow::getGreetings);
-    //
-    //    // After start for getGreeting returns, the workflow is guaranteed to be started.
-    //    // So we can send a signal to it using the workflow stub.
-    //    // This workflow keeps receiving signals until exit is called
-    //
-    //    // When the workflow is started the getGreetings will block for the previously defined
-    //    // conditions
-    //    // Send the first workflow signal
-    //    workflow.waitForName("World");
-    //
-    //    Thread.sleep(2000);
-    //
-    //    /*
-    //     * Here we create a new workflow stub using the same workflow id.
-    //     * We do this to demonstrate that to send a signal to an already running workflow
-    //     * you only need to know its workflow id.
-    //     */
-    //    GreetingWorkflow workflowById = client.newWorkflowStub(GreetingWorkflow.class,
-    // WORKFLOW_ID);
-    //
-    //    Thread.sleep(2000);
-    //
-    //    // Send the second signal to our workflow
-    //    workflowById.waitForName("Universe");
-    //
-    //    Thread.sleep(2000);
-    //
-    //    // Now let's send our exit signal to the workflow
-    //    workflowById.exit();
-    //
-    //    /*
-    //        * We now call our getGreetings workflow method synchronously after our workflow has
-    //    started.
-    //        * This reconnects our workflowById workflow stub to the existing workflow and blocks
-    //    until
-    //        * a result is available. Note that this behavior assumes that WorkflowOptions are not
-    //    configured
-    //        * with WorkflowIdReusePolicy.AllowDuplicate. If they were, this call would fail with
-    // the
-    //        * WorkflowExecutionAlreadyStartedException exception.
-    //        */
-    //    List<String> greetings = workflowById.getGreetings();
-    //
-    //    // Print our two greetings which were sent by signals
-    //    System.out.println(greetings);
-    //    System.exit(0);
+    // Create the workflow options
+    WorkflowOptions workflowOptions =
+        WorkflowOptions.newBuilder().setTaskQueue(TASK_QUEUE).setWorkflowId(WORKFLOW_ID).build();
+
+    // Create the workflow client stub. It is used to start the workflow execution.
+    GreetingWorkflow workflow = client.newWorkflowStub(GreetingWorkflow.class, workflowOptions);
+
+    // Start workflow asynchronously and call its getGreeting workflow method
+    WorkflowClient.start(workflow::getGreetings);
+
+    // After start for getGreeting returns, the workflow is guaranteed to be started.
+    // So we can send a signal to it using the workflow stub.
+    // This workflow keeps receiving signals until exit is called
+
+    // When the workflow is started the getGreetings will block for the previously defined
+    // conditions
+    // Send the first workflow signal
+    workflow.waitForName("World");
+
+    /*
+     * Here we create a new workflow stub using the same workflow id.
+     * We do this to demonstrate that to send a signal to an already running workflow
+     * you only need to know its workflow id.
+     */
+    GreetingWorkflow workflowById = client.newWorkflowStub(GreetingWorkflow.class, WORKFLOW_ID);
+
+    // Send the second signal to our workflow
+    workflowById.waitForName("Universe");
+
+    // Now let's send our exit signal to the workflow
+    workflowById.exit();
+
+    /*
+     * We now call our getGreetings workflow method synchronously after our workflow has started.
+     * This reconnects our workflowById workflow stub to the existing workflow and blocks until
+     * a result is available. Note that this behavior assumes that WorkflowOptions are not configured
+     * with WorkflowIdReusePolicy.AllowDuplicate. If they were, this call would fail with the
+     * WorkflowExecutionAlreadyStartedException exception.
+     */
+    List<String> greetings = workflowById.getGreetings();
+
+    // Print our two greetings which were sent by signals
+    System.out.println(greetings);
+    System.exit(0);
   }
 }
