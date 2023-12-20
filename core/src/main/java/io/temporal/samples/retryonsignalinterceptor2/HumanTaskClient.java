@@ -21,17 +21,18 @@ package io.temporal.samples.retryonsignalinterceptor2;
 
 import io.temporal.workflow.QueryMethod;
 import io.temporal.workflow.SignalMethod;
+import java.util.List;
 
 /** Interface used to dynamically register signal and query handlers from the interceptor. */
 public interface HumanTaskClient {
 
   /** Requests retry of the activities waiting after failure. */
   @SignalMethod
-  void status(HumanTaskService.UpdateTask task);
+  void changeStatus(HumanTaskService.TaskRequest task);
 
   /** Requests no more retries of the activities waiting after failure. */
 
   /** Returns human status of the pending activities. */
   @QueryMethod
-  String getPendingActivitiesStatus();
+  List<HumanTask> getHumanTasks();
 }

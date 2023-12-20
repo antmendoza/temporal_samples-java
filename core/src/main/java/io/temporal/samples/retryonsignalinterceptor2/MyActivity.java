@@ -23,5 +23,5 @@ import io.temporal.activity.ActivityInterface;
 
 @ActivityInterface
 public interface MyActivity {
-  void execute();
+  String execute();
 }

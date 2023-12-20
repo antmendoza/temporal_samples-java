@@ -1,23 +1,18 @@
 package io.temporal.samples.retryonsignalinterceptor2;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import io.temporal.activity.ActivityOptions;
-import io.temporal.common.RetryOptions;
 import io.temporal.workflow.Workflow;
-import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 public class HumanTaskService {
 
-  private final MyActivity activity =
-      Workflow.newActivityStub(
-          MyActivity.class,
-          ActivityOptions.newBuilder()
-              .setStartToCloseTimeout(Duration.ofSeconds(30))
-              // disable server side retries. In most production applications the retries should be
-              // done for a while before requiring an external operator signal.
-              .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(1).build())
-              .build());
-  private Boolean activityCompleted = false;
+  private final Map<String, HumanTask> tasks = new HashMap();
+  private final AtomicInteger atomicInteger = new AtomicInteger(1);
 
   public HumanTaskService() {
 
@@ -25,45 +20,63 @@ public class HumanTaskService {
         new HumanTaskClient() {
 
           @Override
-          public void status(UpdateTask task) {
-            activityCompleted = task.isCompleted();
+          public void changeStatus(TaskRequest taskRequest) {
+
+            if (taskRequest.status == HumanTaskService.STATUS.COMPLETED) {
+              tasks.remove(taskRequest.getToken());
+            }
           }
 
           @Override
-          public String getPendingActivitiesStatus() {
-            return "";
+          public List<HumanTask> getHumanTasks() {
+            return new ArrayList(tasks.values());
           }
         });
   }
 
-  public String execute() {
+  public <T> T execute(Supplier<T> supplier, String token) {
 
-    activity.execute();
-    Workflow.await(() -> this.activityCompleted);
+    final HumanTask humanTask = new HumanTask(this, supplier, token);
+    tasks.put(token, humanTask);
 
-    return "result from activityCompleted";
+    humanTask.start();
+
+    Workflow.await(() -> !tasks.containsValue(humanTask));
+    // TODO
+    return null;
+  }
+
+  public String generateToken() {
+    // return Workflow.getInfo().getWorkflowId() + "" + Workflow.currentTimeMillis() +
+    // atomicInteger.getAndIncrement();
+    return "" + atomicInteger.getAndIncrement();
   }
 
   public enum STATUS {
     PENDING,
-
     STARTED,
     COMPLETED
   }
 
-  public static class UpdateTask {
+  public static class TaskRequest {
 
     private STATUS status;
+    private String token;
 
-    public UpdateTask() {}
+    public TaskRequest() {}
 
-    public UpdateTask(STATUS status) {
+    public TaskRequest(STATUS status, String token) {
       this.status = status;
+      this.token = token;
     }
 
     @JsonIgnore
     public boolean isCompleted() {
       return this.status == STATUS.COMPLETED;
+    }
+
+    public String getToken() {
+      return token;
     }
   }
 }

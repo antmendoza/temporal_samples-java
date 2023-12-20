@@ -23,11 +23,12 @@ public class MyActivityImpl implements MyActivity {
 
   /** Sleeps 5 seconds. */
   @Override
-  public void execute() {
+  public String execute() {
     try {
       Thread.sleep(5000);
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }
+    return "done";
   }
 }

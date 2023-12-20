@@ -1,6 +1,6 @@
 package io.temporal.samples.retryonsignalinterceptor2;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.Assert.assertEquals;
 
 import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.client.WorkflowClient;
@@ -9,19 +9,12 @@ import io.temporal.testing.TestWorkflowEnvironment;
 import io.temporal.testing.TestWorkflowRule;
 import io.temporal.worker.WorkerFactoryOptions;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Rule;
 import org.junit.Test;
 
 public class MyWorkflowImplTest {
-
-  static class TestActivityImpl implements MyActivity {
-
-    final AtomicInteger count = new AtomicInteger();
-
-    @Override
-    public void execute() {}
-  }
 
   private final MyWorkflowImplTest.TestActivityImpl testActivity =
       new MyWorkflowImplTest.TestActivityImpl();
@@ -53,14 +46,28 @@ public class MyWorkflowImplTest {
             .getWorkflowClient()
             .newWorkflowStub(HumanTaskClient.class, execution.getWorkflowId());
 
-    testWorkflowRule.getTestEnvironment().sleep(Duration.ofSeconds(2));
+    testWorkflowRule.getTestEnvironment().sleep(Duration.ofSeconds(1));
 
-    client.status(new HumanTaskService.UpdateTask(HumanTaskService.STATUS.PENDING));
-    client.status(new HumanTaskService.UpdateTask(HumanTaskService.STATUS.STARTED));
-    client.status(new HumanTaskService.UpdateTask(HumanTaskService.STATUS.COMPLETED));
+    final List<HumanTask> humanTasks = client.getHumanTasks();
+    assertEquals(1, humanTasks.size());
+    String token = humanTasks.get(0).getToken();
+
+    client.changeStatus(new HumanTaskService.TaskRequest(HumanTaskService.STATUS.PENDING, token));
+    client.changeStatus(new HumanTaskService.TaskRequest(HumanTaskService.STATUS.STARTED, token));
+    client.changeStatus(new HumanTaskService.TaskRequest(HumanTaskService.STATUS.COMPLETED, token));
 
     WorkflowStub untyped =
         testWorkflowRule.getWorkflowClient().newUntypedWorkflowStub(execution.getWorkflowId());
     untyped.getResult(Void.class);
+  }
+
+  static class TestActivityImpl implements MyActivity {
+
+    final AtomicInteger count = new AtomicInteger();
+
+    @Override
+    public String execute() {
+      return "done";
+    }
   }
 }

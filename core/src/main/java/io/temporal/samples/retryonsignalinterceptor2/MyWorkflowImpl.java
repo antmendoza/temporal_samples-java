@@ -40,6 +40,7 @@ public class MyWorkflowImpl implements MyWorkflow {
   public void execute() {
     HumanTaskService humanTaskService = new HumanTaskService();
 
-    humanTaskService.execute();
+    String result =
+        humanTaskService.execute(() -> activity.execute(), humanTaskService.generateToken());
   }
 }
