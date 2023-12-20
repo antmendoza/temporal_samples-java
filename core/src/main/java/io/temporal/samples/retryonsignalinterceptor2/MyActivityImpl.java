@@ -25,7 +25,7 @@ public class MyActivityImpl implements MyActivity {
   @Override
   public String execute() {
     try {
-      Thread.sleep(5000);
+      Thread.sleep(1000);
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }

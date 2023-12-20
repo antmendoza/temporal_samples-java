@@ -20,27 +20,46 @@
 package io.temporal.samples.retryonsignalinterceptor2;
 
 import io.temporal.activity.ActivityOptions;
-import io.temporal.common.RetryOptions;
+import io.temporal.workflow.Async;
+import io.temporal.workflow.Promise;
 import io.temporal.workflow.Workflow;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MyWorkflowImpl implements MyWorkflow {
 
+  final HumanTaskService humanTaskService = new HumanTaskService();
   private final MyActivity activity =
       Workflow.newActivityStub(
           MyActivity.class,
-          ActivityOptions.newBuilder()
-              .setStartToCloseTimeout(Duration.ofSeconds(30))
-              // disable server side retries. In most production applications the retries should be
-              // done for a while before requiring an external operator signal.
-              .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(1).build())
-              .build());
+          ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(5)).build());
 
   @Override
   public void execute() {
-    HumanTaskService humanTaskService = new HumanTaskService();
 
-    String result =
-        humanTaskService.execute(() -> activity.execute(), humanTaskService.generateToken());
+    List<Promise<String>> activities = new ArrayList<>();
+
+    activities.add(
+        Async.function(
+            () -> {
+              String result =
+                  humanTaskService.execute(
+                      () -> activity.execute(), humanTaskService.generateToken());
+              return result;
+            }));
+
+    activities.add(
+        Async.function(
+            () -> {
+              String result =
+                  humanTaskService.execute(
+                      () -> activity.execute(), humanTaskService.generateToken());
+              return result;
+            }));
+
+    Promise.allOf(activities).get();
+
+    humanTaskService.execute(() -> activity.execute(), humanTaskService.generateToken());
   }
 }

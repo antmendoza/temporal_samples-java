@@ -11,45 +11,52 @@ import java.util.function.Supplier;
 
 public class HumanTaskService {
 
-  private final Map<String, HumanTask> tasks = new HashMap();
+  private final Map<String, HumanTask> pendingTasks = new HashMap();
   private final AtomicInteger atomicInteger = new AtomicInteger(1);
+
+  final HumanTaskClient listener =
+      new HumanTaskClient() {
+
+        @Override
+        public void changeStatus(TaskRequest taskRequest) {
+          if (taskRequest.status == STATUS.COMPLETED) {
+            pendingTasks.remove(taskRequest.getToken());
+          }
+        }
+
+        @Override
+        public List<HumanTask> getPendingTasks() {
+          return new ArrayList(pendingTasks.values());
+        }
+      };
 
   public HumanTaskService() {
 
-    Workflow.registerListener(
-        new HumanTaskClient() {
-
-          @Override
-          public void changeStatus(TaskRequest taskRequest) {
-
-            if (taskRequest.status == HumanTaskService.STATUS.COMPLETED) {
-              tasks.remove(taskRequest.getToken());
-            }
-          }
-
-          @Override
-          public List<HumanTask> getHumanTasks() {
-            return new ArrayList(tasks.values());
-          }
-        });
+    Workflow.registerListener(listener);
   }
 
   public <T> T execute(Supplier<T> supplier, String token) {
 
-    final HumanTask humanTask = new HumanTask(this, supplier, token);
-    tasks.put(token, humanTask);
+    final HumanTask humanTask = new HumanTask(supplier, token);
+    pendingTasks.put(token, humanTask);
 
     humanTask.start();
 
-    Workflow.await(() -> !tasks.containsValue(humanTask));
+    Workflow.await(() -> !pendingTasks.containsValue(humanTask));
     // TODO
     return null;
   }
 
   public String generateToken() {
-    // return Workflow.getInfo().getWorkflowId() + "" + Workflow.currentTimeMillis() +
-    // atomicInteger.getAndIncrement();
-    return "" + atomicInteger.getAndIncrement();
+    return Workflow.getInfo().getWorkflowId()
+        + "-"
+        + Workflow.currentTimeMillis()
+        + "-"
+        + atomicInteger.getAndIncrement();
+  }
+
+  public List<HumanTask> getPendingTasks() {
+    return listener.getPendingTasks();
   }
 
   public enum STATUS {

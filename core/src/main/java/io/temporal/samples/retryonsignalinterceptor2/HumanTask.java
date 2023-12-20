@@ -9,7 +9,7 @@ public class HumanTask {
 
   public HumanTask() {}
 
-  public <T> HumanTask(HumanTaskService humanTaskService, Supplier<T> supplier, String token) {
+  public <T> HumanTask(Supplier<T> supplier, String token) {
     this.supplier = (Supplier<Object>) supplier;
     this.token = token;
   }

@@ -21,16 +21,14 @@ public class MyWorkflowImplTest {
 
   @Rule
   public TestWorkflowRule testWorkflowRule =
-      TestWorkflowRule.newBuilder()
-          .setUseExternalService(true)
-          .setTarget("127.0.0.1:7233") // default 127.0.0.1:7233
-          .setNamespace("default") // default
-          .setWorkerFactoryOptions(
-              WorkerFactoryOptions.newBuilder()
-                  // .setWorkerInterceptors(new RetryOnSignalWorkerInterceptor())
-                  .validateAndBuildWithDefaults())
-          .setWorkflowTypes(MyWorkflowImpl.class)
-          .setActivityImplementations(testActivity)
+      createTestEnv(
+              TestWorkflowRule.newBuilder()
+                  .setWorkerFactoryOptions(
+                      WorkerFactoryOptions.newBuilder()
+                          // .setWorkerInterceptors(new RetryOnSignalWorkerInterceptor())
+                          .validateAndBuildWithDefaults())
+                  .setWorkflowTypes(MyWorkflowImpl.class)
+                  .setActivityImplementations(testActivity))
           .build();
 
   @Test
@@ -48,13 +46,13 @@ public class MyWorkflowImplTest {
 
     testWorkflowRule.getTestEnvironment().sleep(Duration.ofSeconds(1));
 
-    final List<HumanTask> humanTasks = client.getHumanTasks();
-    assertEquals(1, humanTasks.size());
-    String token = humanTasks.get(0).getToken();
+    final List<HumanTask> humanTasks_2 = client.getPendingTasks();
+    assertEquals(2, humanTasks_2.size());
+    completeTasks(client, humanTasks_2);
 
-    client.changeStatus(new HumanTaskService.TaskRequest(HumanTaskService.STATUS.PENDING, token));
-    client.changeStatus(new HumanTaskService.TaskRequest(HumanTaskService.STATUS.STARTED, token));
-    client.changeStatus(new HumanTaskService.TaskRequest(HumanTaskService.STATUS.COMPLETED, token));
+    final List<HumanTask> humanTasks_1 = client.getPendingTasks();
+    assertEquals(1, humanTasks_1.size());
+    completeTasks(client, humanTasks_1);
 
     WorkflowStub untyped =
         testWorkflowRule.getWorkflowClient().newUntypedWorkflowStub(execution.getWorkflowId());
@@ -69,5 +67,32 @@ public class MyWorkflowImplTest {
     public String execute() {
       return "done";
     }
+  }
+
+  private static void completeTasks(HumanTaskClient client, List<HumanTask> humanTasks_1) {
+    humanTasks_1.forEach(
+        t -> {
+          client.changeStatus(
+              new HumanTaskService.TaskRequest(HumanTaskService.STATUS.PENDING, t.getToken()));
+          client.changeStatus(
+              new HumanTaskService.TaskRequest(HumanTaskService.STATUS.STARTED, t.getToken()));
+          client.changeStatus(
+              new HumanTaskService.TaskRequest(HumanTaskService.STATUS.COMPLETED, t.getToken()));
+        });
+  }
+
+  private TestWorkflowRule.Builder createTestEnv(TestWorkflowRule.Builder builder) {
+
+    if (Boolean.parseBoolean(System.getenv("TEST_LOCALHOST"))) {
+
+      TestWorkflowRule.Builder result = builder;
+      builder
+          .setUseExternalService(true)
+          .setTarget("127.0.0.1:7233") // default 127.0.0.1:7233
+          .setNamespace("default");
+      // default
+      return result;
+    }
+    return builder;
   }
 }

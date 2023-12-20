@@ -26,13 +26,9 @@ import java.util.List;
 /** Interface used to dynamically register signal and query handlers from the interceptor. */
 public interface HumanTaskClient {
 
-  /** Requests retry of the activities waiting after failure. */
   @SignalMethod
   void changeStatus(HumanTaskService.TaskRequest task);
 
-  /** Requests no more retries of the activities waiting after failure. */
-
-  /** Returns human status of the pending activities. */
   @QueryMethod
-  List<HumanTask> getHumanTasks();
+  List<HumanTask> getPendingTasks();
 }
