@@ -1,6 +1,7 @@
-package io.temporal.samples.retryonsignalinterceptor2;
+package io.temporal.samples.humaninteraction;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.util.function.Supplier;
 
 public class HumanTask {
@@ -16,10 +17,8 @@ public class HumanTask {
 
   @JsonIgnore
   public void start() {
-
     // activity execution
     Object result = supplier.get();
-    System.out.println(result);
   }
 
   public String getToken() {

@@ -17,12 +17,13 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.retryonsignalinterceptor2;
+package io.temporal.samples.humaninteraction;
 
 import io.temporal.activity.ActivityOptions;
 import io.temporal.workflow.Async;
 import io.temporal.workflow.Promise;
 import io.temporal.workflow.Workflow;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;

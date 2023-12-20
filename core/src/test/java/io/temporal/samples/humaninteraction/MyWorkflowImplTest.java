@@ -1,4 +1,4 @@
-package io.temporal.samples.retryonsignalinterceptor2;
+package io.temporal.samples.humaninteraction;
 
 import static org.junit.Assert.assertEquals;
 

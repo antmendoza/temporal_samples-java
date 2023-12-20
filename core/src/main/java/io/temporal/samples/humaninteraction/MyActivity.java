@@ -17,18 +17,12 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.retryonsignalinterceptor2;
+package io.temporal.samples.humaninteraction;
 
-public class MyActivityImpl implements MyActivity {
+import io.temporal.activity.ActivityInterface;
 
-  /** Sleeps 5 seconds. */
-  @Override
-  public String execute() {
-    try {
-      Thread.sleep(1000);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
-    return "done";
-  }
+@ActivityInterface
+public interface MyActivity {
+
+  String execute();
 }

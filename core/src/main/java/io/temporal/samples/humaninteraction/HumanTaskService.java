@@ -1,7 +1,8 @@
-package io.temporal.samples.retryonsignalinterceptor2;
+package io.temporal.samples.humaninteraction;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.temporal.workflow.Workflow;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;

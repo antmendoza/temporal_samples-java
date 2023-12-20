@@ -17,12 +17,19 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.retryonsignalinterceptor2;
+package io.temporal.samples.humaninteraction;
 
-import io.temporal.activity.ActivityInterface;
+import io.temporal.workflow.QueryMethod;
+import io.temporal.workflow.SignalMethod;
 
-@ActivityInterface
-public interface MyActivity {
+import java.util.List;
 
-  String execute();
+/** Interface used to dynamically register signal and query handlers from the interceptor. */
+public interface HumanTaskClient {
+
+  @SignalMethod
+  void changeStatus(HumanTaskService.TaskRequest task);
+
+  @QueryMethod
+  List<HumanTask> getPendingTasks();
 }
