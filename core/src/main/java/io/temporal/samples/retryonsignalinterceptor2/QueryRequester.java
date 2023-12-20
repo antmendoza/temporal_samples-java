@@ -19,10 +19,10 @@
 
 package io.temporal.samples.retryonsignalinterceptor2;
 
+import static io.temporal.samples.retryonsignalinterceptor2.MyWorkflowWorker.WORKFLOW_ID;
+
 import io.temporal.client.WorkflowClient;
 import io.temporal.serviceclient.WorkflowServiceStubs;
-
-import static io.temporal.samples.retryonsignalinterceptor.MyWorkflowWorker.WORKFLOW_ID;
 
 public class QueryRequester {
 
@@ -32,8 +32,7 @@ public class QueryRequester {
 
     // Note that we use the listener interface that the interceptor registered dynamically, not the
     // workflow interface.
-    RetryOnSignalInterceptorListener workflow =
-        client.newWorkflowStub(RetryOnSignalInterceptorListener.class, WORKFLOW_ID);
+    HumanTaskClient workflow = client.newWorkflowStub(HumanTaskClient.class, WORKFLOW_ID);
 
     // Queries workflow.
     String status = workflow.getPendingActivitiesStatus();

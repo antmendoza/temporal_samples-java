@@ -23,15 +23,13 @@ import io.temporal.workflow.QueryMethod;
 import io.temporal.workflow.SignalMethod;
 
 /** Interface used to dynamically register signal and query handlers from the interceptor. */
-public interface RetryOnSignalInterceptorListener {
+public interface HumanTaskClient {
 
   /** Requests retry of the activities waiting after failure. */
   @SignalMethod
-  void retry();
+  void status(HumanTaskService.UpdateTask task);
 
   /** Requests no more retries of the activities waiting after failure. */
-  @SignalMethod
-  void fail();
 
   /** Returns human status of the pending activities. */
   @QueryMethod

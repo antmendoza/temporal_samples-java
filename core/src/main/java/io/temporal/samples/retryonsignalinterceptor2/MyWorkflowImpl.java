@@ -22,7 +22,6 @@ package io.temporal.samples.retryonsignalinterceptor2;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.common.RetryOptions;
 import io.temporal.workflow.Workflow;
-
 import java.time.Duration;
 
 public class MyWorkflowImpl implements MyWorkflow {
@@ -39,6 +38,8 @@ public class MyWorkflowImpl implements MyWorkflow {
 
   @Override
   public void execute() {
-    activity.execute();
+    HumanTaskService humanTaskService = new HumanTaskService();
+
+    humanTaskService.execute();
   }
 }

@@ -38,7 +38,7 @@ public class MyWorkflowWorker {
     // Register interceptor with the factory.
     WorkerFactoryOptions factoryOptions =
         WorkerFactoryOptions.newBuilder()
-            .setWorkerInterceptors(new RetryOnSignalWorkerInterceptor())
+            // .setWorkerInterceptors(new RetryOnSignalWorkerInterceptor())
             .validateAndBuildWithDefaults();
     WorkerFactory factory = WorkerFactory.newInstance(client, factoryOptions);
     Worker worker = factory.newWorker(TASK_QUEUE);
