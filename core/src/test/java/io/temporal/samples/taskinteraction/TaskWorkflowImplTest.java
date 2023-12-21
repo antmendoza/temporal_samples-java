@@ -1,4 +1,4 @@
-package io.temporal.samples.taskteraction;
+package io.temporal.samples.taskinteraction;
 
 import static org.junit.Assert.assertEquals;
 
@@ -7,7 +7,6 @@ import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowStub;
 import io.temporal.testing.TestWorkflowRule;
 import io.temporal.worker.WorkerFactoryOptions;
-import java.time.Duration;
 import java.util.List;
 import org.junit.Rule;
 import org.junit.Test;
@@ -30,7 +29,7 @@ public class TaskWorkflowImplTest {
           .build();
 
   @Test
-  public void testRetryThenFail() {
+  public void testRetryThenFail() throws InterruptedException {
 
     TaskWorkflow workflow = testWorkflowRule.newWorkflowStub(TaskWorkflow.class);
     WorkflowExecution execution = WorkflowClient.start(workflow::execute);
@@ -40,8 +39,6 @@ public class TaskWorkflowImplTest {
         testWorkflowRule
             .getWorkflowClient()
             .newWorkflowStub(TaskClient.class, execution.getWorkflowId());
-
-    testWorkflowRule.getTestEnvironment().sleep(Duration.ofSeconds(1));
 
     final List<Task> tasks_2 = client.getPendingTasks();
     assertEquals(2, tasks_2.size());

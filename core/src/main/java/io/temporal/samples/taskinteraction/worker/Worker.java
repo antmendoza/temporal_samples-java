@@ -17,13 +17,13 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.taskteraction.worker;
+package io.temporal.samples.taskinteraction.worker;
 
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
-import io.temporal.samples.taskteraction.TaskActivityImpl;
-import io.temporal.samples.taskteraction.TaskWorkflow;
-import io.temporal.samples.taskteraction.TaskWorkflowImpl;
+import io.temporal.samples.taskinteraction.TaskActivityImpl;
+import io.temporal.samples.taskinteraction.TaskWorkflow;
+import io.temporal.samples.taskinteraction.TaskWorkflowImpl;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.WorkerFactory;
 import io.temporal.worker.WorkerFactoryOptions;

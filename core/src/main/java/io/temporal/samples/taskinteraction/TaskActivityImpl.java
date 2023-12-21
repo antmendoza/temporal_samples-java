@@ -17,7 +17,7 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.taskteraction;
+package io.temporal.samples.taskinteraction;
 
 public class TaskActivityImpl implements TaskActivity {
   @Override

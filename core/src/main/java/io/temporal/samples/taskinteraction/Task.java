@@ -1,11 +1,11 @@
-package io.temporal.samples.taskteraction;
+package io.temporal.samples.taskinteraction;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
-public class Task<T> {
+public class Task {
 
   private String token;
-  private T result;
+  private Object result;
   private TaskService.STATUS status;
 
   public Task() {}
@@ -18,11 +18,11 @@ public class Task<T> {
     return token;
   }
 
-  public void setResult(T result) {
+  public void setResult(Object result) {
     this.result = result;
   }
 
-  public <T> T result() {
+  public <T> T result(Class<T> tClass) {
     return (T) result;
   }
 

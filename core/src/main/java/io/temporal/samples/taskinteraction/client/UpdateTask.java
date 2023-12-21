@@ -1,3 +1,3 @@
-package io.temporal.samples.taskteraction.client;
+package io.temporal.samples.taskinteraction.client;
 
 public class UpdateTask {}

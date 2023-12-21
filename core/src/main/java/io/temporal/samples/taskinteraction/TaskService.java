@@ -1,20 +1,34 @@
-package io.temporal.samples.taskteraction;
+/*
+ *  Copyright (c) 2020 Temporal Technologies, Inc. All Rights Reserved
+ *
+ *  Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ *  Modifications copyright (C) 2017 Uber Technologies, Inc.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"). You may not
+ *  use this file except in compliance with the License. A copy of the License is
+ *  located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ *  or in the "license" file accompanying this file. This file is distributed on
+ *  an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied. See the License for the specific language governing
+ *  permissions and limitations under the License.
+ */
+
+package io.temporal.samples.taskinteraction;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.temporal.workflow.Workflow;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TaskService {
 
-  public interface Callback<T> {
-    T execute();
-  }
-
-  private final Map<String, Task> pendingTasks = new HashMap();
-
+  private final Map<String, Task> tasks = new HashMap();
   // The listener expose signal and query methods that
   // will allow us to interact with the workflow execution if needed
   final TaskClient listener =
@@ -23,19 +37,18 @@ public class TaskService {
         @Override
         public void changeStatus(TaskRequest taskRequest) {
 
-          pendingTasks.get(taskRequest.getToken()).setResult(taskRequest.getData());
+          tasks.get(taskRequest.getToken()).setResult(taskRequest.getData());
 
-          Task t = pendingTasks.get(taskRequest.getToken());
+          Task t = tasks.get(taskRequest.getToken());
 
           t.setStatus(STATUS.COMPLETED);
-          if (taskRequest.status == STATUS.COMPLETED) {
-            pendingTasks.remove(taskRequest.getToken());
-          }
+
+          tasks.put(t.getToken(), t);
         }
 
         @Override
         public List<Task> getPendingTasks() {
-          return new ArrayList(pendingTasks.values());
+          return tasks.values().stream().filter(t -> !t.isCompleted()).collect(Collectors.toList());
         }
       };
 
@@ -45,18 +58,17 @@ public class TaskService {
 
   public <T> T execute(Callback<T> callback, String token) {
 
-    final Task<T> task = new Task(token);
-    pendingTasks.put(token, task);
+    final Task task = new Task(token);
+    tasks.put(token, task);
 
     callback.execute();
 
     // Block the
-    Workflow.await(() -> !pendingTasks.containsValue(task));
-    Workflow.await(() -> !task.isCompleted());
+    Workflow.await(() -> task.isCompleted());
 
     // Workflow.await(() -> !pendingTasks.values().stream().filter(t -> t.isCompleted());
 
-    return task.result();
+    return (T) task.result(String.class);
   }
 
   public List<Task> getPendingTasks() {
@@ -67,6 +79,10 @@ public class TaskService {
     PENDING,
     STARTED,
     COMPLETED
+  }
+
+  public interface Callback<T> {
+    T execute();
   }
 
   public static class TaskRequest {
