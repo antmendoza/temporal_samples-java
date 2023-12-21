@@ -17,18 +17,14 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.humaninteraction;
+package io.temporal.samples.taskteraction;
 
-public class MyActivityImpl implements MyActivity {
+import io.temporal.workflow.WorkflowInterface;
+import io.temporal.workflow.WorkflowMethod;
 
-  /** Sleeps 5 seconds. */
-  @Override
-  public String execute() {
-    try {
-      Thread.sleep(1000);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
-    return "done";
-  }
+@WorkflowInterface
+public interface TaskWorkflow {
+
+  @WorkflowMethod
+  void execute();
 }

@@ -17,19 +17,18 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.humaninteraction.worker;
+package io.temporal.samples.taskteraction.worker;
 
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
-import io.temporal.samples.humaninteraction.MyActivityImpl;
-import io.temporal.samples.humaninteraction.MyWorkflow;
-import io.temporal.samples.humaninteraction.MyWorkflowImpl;
+import io.temporal.samples.taskteraction.TaskActivityImpl;
+import io.temporal.samples.taskteraction.TaskWorkflow;
+import io.temporal.samples.taskteraction.TaskWorkflowImpl;
 import io.temporal.serviceclient.WorkflowServiceStubs;
-import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
 import io.temporal.worker.WorkerFactoryOptions;
 
-public class MyWorkflowWorker {
+public class Worker {
 
   static final String TASK_QUEUE = "HumanInteractionTaskQueue";
   static final String WORKFLOW_ID = "HumanInteraction";
@@ -41,21 +40,20 @@ public class MyWorkflowWorker {
 
     // Register interceptor with the factory.
     WorkerFactoryOptions factoryOptions =
-        WorkerFactoryOptions.newBuilder()
-            .validateAndBuildWithDefaults();
+        WorkerFactoryOptions.newBuilder().validateAndBuildWithDefaults();
 
     WorkerFactory factory = WorkerFactory.newInstance(client, factoryOptions);
 
-    Worker worker = factory.newWorker(TASK_QUEUE);
-    worker.registerWorkflowImplementationTypes(MyWorkflowImpl.class);
-    worker.registerActivitiesImplementations(new MyActivityImpl());
+    io.temporal.worker.Worker worker = factory.newWorker(TASK_QUEUE);
+    worker.registerWorkflowImplementationTypes(TaskWorkflowImpl.class);
+    worker.registerActivitiesImplementations(new TaskActivityImpl());
 
     factory.start();
 
     // Create the workflow client stub. It is used to start our workflow execution.
-    MyWorkflow workflow =
+    TaskWorkflow workflow =
         client.newWorkflowStub(
-            MyWorkflow.class,
+            TaskWorkflow.class,
             WorkflowOptions.newBuilder()
                 .setWorkflowId(WORKFLOW_ID)
                 .setTaskQueue(TASK_QUEUE)

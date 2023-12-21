@@ -17,14 +17,12 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.humaninteraction;
+package io.temporal.samples.taskteraction;
 
-import io.temporal.workflow.WorkflowInterface;
-import io.temporal.workflow.WorkflowMethod;
+import io.temporal.activity.ActivityInterface;
 
-@WorkflowInterface
-public interface MyWorkflow {
+@ActivityInterface
+public interface TaskActivity {
 
-  @WorkflowMethod
-  void execute();
+  String createTask(String task);
 }

@@ -17,12 +17,19 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.humaninteraction;
+package io.temporal.samples.taskteraction;
 
-import io.temporal.activity.ActivityInterface;
+public class TaskActivityImpl implements TaskActivity {
+  @Override
+  public String createTask(String task) {
 
-@ActivityInterface
-public interface MyActivity {
+    // Simulating delay in task creation
+    try {
+      Thread.sleep(500);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
 
-  String execute();
+    return "activity created";
+  }
 }

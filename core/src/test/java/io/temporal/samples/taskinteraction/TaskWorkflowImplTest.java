@@ -1,23 +1,21 @@
-package io.temporal.samples.humaninteraction;
+package io.temporal.samples.taskteraction;
 
 import static org.junit.Assert.assertEquals;
 
 import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowStub;
-import io.temporal.testing.TestWorkflowEnvironment;
 import io.temporal.testing.TestWorkflowRule;
 import io.temporal.worker.WorkerFactoryOptions;
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Rule;
 import org.junit.Test;
 
-public class MyWorkflowImplTest {
+public class TaskWorkflowImplTest {
 
-  private final MyWorkflowImplTest.TestActivityImpl testActivity =
-      new MyWorkflowImplTest.TestActivityImpl();
+  private final TaskWorkflowImplTest.TestActivityImpl testActivity =
+      new TaskWorkflowImplTest.TestActivityImpl();
 
   @Rule
   public TestWorkflowRule testWorkflowRule =
@@ -27,57 +25,55 @@ public class MyWorkflowImplTest {
                       WorkerFactoryOptions.newBuilder()
                           // .setWorkerInterceptors(new RetryOnSignalWorkerInterceptor())
                           .validateAndBuildWithDefaults())
-                  .setWorkflowTypes(MyWorkflowImpl.class)
+                  .setWorkflowTypes(TaskWorkflowImpl.class)
                   .setActivityImplementations(testActivity))
           .build();
 
   @Test
   public void testRetryThenFail() {
-    testActivity.count.set(0);
-    TestWorkflowEnvironment testEnvironment = testWorkflowRule.getTestEnvironment();
-    MyWorkflow workflow = testWorkflowRule.newWorkflowStub(MyWorkflow.class);
+
+    TaskWorkflow workflow = testWorkflowRule.newWorkflowStub(TaskWorkflow.class);
     WorkflowExecution execution = WorkflowClient.start(workflow::execute);
 
     // Get stub to the dynamically registered interface
-    HumanTaskClient client =
+    TaskClient client =
         testWorkflowRule
             .getWorkflowClient()
-            .newWorkflowStub(HumanTaskClient.class, execution.getWorkflowId());
+            .newWorkflowStub(TaskClient.class, execution.getWorkflowId());
 
     testWorkflowRule.getTestEnvironment().sleep(Duration.ofSeconds(1));
 
-    final List<HumanTask> humanTasks_2 = client.getPendingTasks();
-    assertEquals(2, humanTasks_2.size());
-    completeTasks(client, humanTasks_2);
+    final List<Task> tasks_2 = client.getPendingTasks();
+    assertEquals(2, tasks_2.size());
+    completeTasks(client, tasks_2);
 
-    final List<HumanTask> humanTasks_1 = client.getPendingTasks();
-    assertEquals(1, humanTasks_1.size());
-    completeTasks(client, humanTasks_1);
+    final List<Task> tasks_1 = client.getPendingTasks();
+    assertEquals(1, tasks_1.size());
+    completeTasks(client, tasks_1);
 
     WorkflowStub untyped =
         testWorkflowRule.getWorkflowClient().newUntypedWorkflowStub(execution.getWorkflowId());
     untyped.getResult(Void.class);
   }
 
-  static class TestActivityImpl implements MyActivity {
-
-    final AtomicInteger count = new AtomicInteger();
+  static class TestActivityImpl implements TaskActivity {
 
     @Override
-    public String execute() {
+    public String createTask(String task) {
       return "done";
     }
   }
 
-  private static void completeTasks(HumanTaskClient client, List<HumanTask> humanTasks_1) {
-    humanTasks_1.forEach(
+  private static void completeTasks(TaskClient client, List<Task> tasks_1) {
+    tasks_1.forEach(
         t -> {
           client.changeStatus(
-              new HumanTaskService.TaskRequest(HumanTaskService.STATUS.PENDING, t.getToken()));
+              new TaskService.TaskRequest(TaskService.STATUS.PENDING, "Submitting ", t.getToken()));
           client.changeStatus(
-              new HumanTaskService.TaskRequest(HumanTaskService.STATUS.STARTED, t.getToken()));
+              new TaskService.TaskRequest(TaskService.STATUS.STARTED, "Submitting ", t.getToken()));
           client.changeStatus(
-              new HumanTaskService.TaskRequest(HumanTaskService.STATUS.COMPLETED, t.getToken()));
+              new TaskService.TaskRequest(
+                  TaskService.STATUS.COMPLETED, "Submitting ", t.getToken()));
         });
   }
 

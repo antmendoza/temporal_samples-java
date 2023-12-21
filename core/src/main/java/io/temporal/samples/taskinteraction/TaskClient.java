@@ -17,19 +17,18 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.humaninteraction;
+package io.temporal.samples.taskteraction;
 
 import io.temporal.workflow.QueryMethod;
 import io.temporal.workflow.SignalMethod;
-
 import java.util.List;
 
 /** Interface used to dynamically register signal and query handlers from the interceptor. */
-public interface HumanTaskClient {
+public interface TaskClient {
 
   @SignalMethod
-  void changeStatus(HumanTaskService.TaskRequest task);
+  void changeStatus(TaskService.TaskRequest task);
 
   @QueryMethod
-  List<HumanTask> getPendingTasks();
+  List<Task> getPendingTasks();
 }
