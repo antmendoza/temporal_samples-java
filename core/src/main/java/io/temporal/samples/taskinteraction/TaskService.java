@@ -63,10 +63,8 @@ public class TaskService {
 
     callback.execute();
 
-    // Block the
+    // Block until task is completed
     Workflow.await(() -> task.isCompleted());
-
-    // Workflow.await(() -> !pendingTasks.values().stream().filter(t -> t.isCompleted());
 
     return (T) task.result(String.class);
   }
