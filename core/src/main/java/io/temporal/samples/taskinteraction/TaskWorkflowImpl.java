@@ -21,12 +21,10 @@ package io.temporal.samples.taskinteraction;
 
 import io.temporal.activity.ActivityOptions;
 import io.temporal.samples.updatabletimer.UpdatableTimer;
-import io.temporal.workflow.Async;
 import io.temporal.workflow.Promise;
 import io.temporal.workflow.Workflow;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 
@@ -34,7 +32,7 @@ public class TaskWorkflowImpl implements TaskWorkflow {
 
   private final Logger logger = Workflow.getLogger(UpdatableTimer.class);
 
-  private final TaskService taskService = new TaskService();
+  private final TaskService<String> taskService = new TaskService<>();
 
   private final TaskActivity activity =
       Workflow.newActivityStub(
@@ -44,24 +42,17 @@ public class TaskWorkflowImpl implements TaskWorkflow {
   @Override
   public void execute() {
 
-    final List<Promise<String>> tasks = new ArrayList<>();
-
     // Schedule two "tasks" in parallel. The last parameter is the token the client needs
-    // to change the task status
-    tasks.add(
-        Async.function(
-            () -> taskService.execute(() -> activity.createTask("TODO 1"), generateToken())));
+    // to change the task status, and ultimately to complete the task
+    Promise<String> task1 =
+        taskService.executeAsync(() -> activity.createTask("TODO 1"), generateToken());
+    Promise<String> task2 =
+        taskService.executeAsync(() -> activity.createTask("TODO 2"), generateToken());
 
-    tasks.add(
-        Async.function(
-            () -> taskService.execute(() -> activity.createTask("TODO 2"), generateToken())));
+    // Block execution until both tasks complete
+    Promise.allOf(Arrays.asList(task1, task2)).get();
 
-    // Wait for async "tasks" to be in "COMPLETED" state
-    Promise.allOf(tasks).get();
-
-    tasks.forEach((t) -> logger.info("Task result: " + t.get()));
-
-    // Block workflow code until the "task" is in "COMPLETED" state
+    // Blocking invocation
     taskService.execute(() -> activity.createTask("TODO 3"), generateToken());
   }
 

@@ -20,30 +20,39 @@
 package io.temporal.samples.taskinteraction;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import io.temporal.workflow.CompletablePromise;
+import io.temporal.workflow.Promise;
 import io.temporal.workflow.Workflow;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class TaskService {
+public class TaskService<R> {
 
-  private final Map<String, Task> tasks = new HashMap();
+  private final Map<String, Task> tasks = new HashMap<>();
+  private final Map<String, CompletablePromise<R>> pendingPromises = new HashMap<>();
+
   // The listener expose signal and query methods that
-  // will allow us to interact with the workflow execution if needed
+  // will allow us to interact with the workflow execution
   final TaskClient listener =
       new TaskClient() {
 
         @Override
         public void changeStatus(TaskRequest taskRequest) {
+          String token = taskRequest.getToken();
+          String data = taskRequest.getData();
+          tasks.get(token).setResult(data);
 
-          tasks.get(taskRequest.getToken()).setResult(taskRequest.getData());
-
-          Task t = tasks.get(taskRequest.getToken());
+          Task t = tasks.get(token);
 
           t.setStatus(STATUS.COMPLETED);
 
           tasks.put(t.getToken(), t);
+
+          CompletablePromise<R> rCompletablePromise = pendingPromises.get(token);
+
+          rCompletablePromise.complete((R) data);
         }
 
         @Override
@@ -56,17 +65,21 @@ public class TaskService {
     Workflow.registerListener(listener);
   }
 
-  public <T> T execute(Callback<T> callback, String token) {
+  public R execute(Callback<R> callback, String token) {
+
+    return executeAsync(callback, token).get();
+  }
+
+  public Promise<R> executeAsync(Callback<R> callback, String token) {
 
     final Task task = new Task(token);
     tasks.put(token, task);
-
     callback.execute();
 
-    // Block until task is completed
-    Workflow.await(() -> task.isCompleted());
+    CompletablePromise<R> promise = Workflow.newPromise();
+    pendingPromises.put(token, promise);
 
-    return (T) task.result(String.class);
+    return promise;
   }
 
   public List<Task> getPendingTasks() {

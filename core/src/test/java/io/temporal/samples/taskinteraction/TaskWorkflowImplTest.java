@@ -29,7 +29,7 @@ public class TaskWorkflowImplTest {
           .build();
 
   @Test
-  public void testRetryThenFail() throws InterruptedException {
+  public void testHappyPath() {
 
     TaskWorkflow workflow = testWorkflowRule.newWorkflowStub(TaskWorkflow.class);
     WorkflowExecution execution = WorkflowClient.start(workflow::execute);
@@ -40,9 +40,24 @@ public class TaskWorkflowImplTest {
             .getWorkflowClient()
             .newWorkflowStub(TaskClient.class, execution.getWorkflowId());
 
+    try {
+      Thread.sleep(4000);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
+
     final List<Task> tasks_2 = client.getPendingTasks();
+
+    System.out.println(tasks_2);
+
     assertEquals(2, tasks_2.size());
     completeTasks(client, tasks_2);
+
+    try {
+      Thread.sleep(1000);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
 
     final List<Task> tasks_1 = client.getPendingTasks();
     assertEquals(1, tasks_1.size());
@@ -65,9 +80,8 @@ public class TaskWorkflowImplTest {
     tasks_1.forEach(
         t -> {
           client.changeStatus(
-              new TaskService.TaskRequest(TaskService.STATUS.PENDING, "Submitting ", t.getToken()));
-          client.changeStatus(
-              new TaskService.TaskRequest(TaskService.STATUS.STARTED, "Submitting ", t.getToken()));
+              new TaskService.TaskRequest(
+                  TaskService.STATUS.STARTED, "Submitting ", t.getToken()));
           client.changeStatus(
               new TaskService.TaskRequest(
                   TaskService.STATUS.COMPLETED, "Submitting ", t.getToken()));

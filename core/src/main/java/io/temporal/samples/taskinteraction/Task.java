@@ -34,4 +34,9 @@ public class Task {
   public boolean isCompleted() {
     return TaskService.STATUS.COMPLETED == this.status;
   }
+
+  @Override
+  public String toString() {
+    return "Task{" + "token='" + token + '\'' + ", result=" + result + ", status=" + status + '}';
+  }
 }
