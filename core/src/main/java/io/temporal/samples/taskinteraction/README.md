@@ -15,3 +15,6 @@ Additionally,the example allows the task progress tracking (PENDING, STARTED, CO
 
 
 
+
+https://docs.oasis-open.org/bpel4people/ws-humantask-1.1-spec-cs-01.html
+
