@@ -5,38 +5,49 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 public class Task {
 
   private String token;
-  private Object result;
-  private TaskService.STATUS status;
+  private Object data;
+  private STATE state;
 
   public Task() {}
 
   public Task(String token) {
     this.token = token;
+    this.state = STATE.PENDING;
   }
 
   public String getToken() {
     return token;
   }
 
-  public void setResult(Object result) {
-    this.result = result;
+  public void setData(Object data) {
+    this.data = data;
   }
 
   public <T> T result(Class<T> tClass) {
-    return (T) result;
+    return (T) data;
   }
 
-  public void setStatus(TaskService.STATUS status) {
-    this.status = status;
+  public void setState(STATE state) {
+    this.state = state;
+  }
+
+  public STATE getState() {
+    return state;
   }
 
   @JsonIgnore
   public boolean isCompleted() {
-    return TaskService.STATUS.COMPLETED == this.status;
+    return STATE.COMPLETED == this.state;
   }
 
   @Override
   public String toString() {
-    return "Task{" + "token='" + token + '\'' + ", result=" + result + ", status=" + status + '}';
+    return "Task{" + "token='" + token + '\'' + ", data=" + data + ", state=" + state + '}';
+  }
+
+  public enum STATE {
+    PENDING,
+    STARTED,
+    COMPLETED
   }
 }

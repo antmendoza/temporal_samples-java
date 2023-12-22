@@ -23,73 +23,73 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.temporal.workflow.CompletablePromise;
 import io.temporal.workflow.Promise;
 import io.temporal.workflow.Workflow;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
 
 public class TaskService<R> {
 
-  private final Map<String, Task> tasks = new HashMap<>();
-  private final Map<String, CompletablePromise<R>> pendingPromises = new HashMap<>();
+  private final Map<String, Task> tasks = Collections.synchronizedMap(new HashMap<>());
+  private final Map<String, CompletablePromise<R>> pendingPromises =
+      Collections.synchronizedMap(new HashMap<>());
 
-  // The listener expose signal and query methods that
+  // This listener exposes signal and query methods that
   // will allow us to interact with the workflow execution
-  final TaskClient listener =
+  private final TaskClient listener =
       new TaskClient() {
 
         @Override
-        public void changeStatus(TaskRequest taskRequest) {
-          String token = taskRequest.getToken();
-          String data = taskRequest.getData();
-          tasks.get(token).setResult(data);
+        public void updateTask(TaskRequest taskRequest) {
 
-          Task t = tasks.get(token);
+          final String token = taskRequest.getToken();
+          final String data = taskRequest.getData();
+          tasks.get(token).setData(data);
 
-          t.setStatus(STATUS.COMPLETED);
+          final Task t = tasks.get(token);
 
+          t.setState(taskRequest.state);
           tasks.put(t.getToken(), t);
 
-          CompletablePromise<R> rCompletablePromise = pendingPromises.get(token);
-
-          rCompletablePromise.complete((R) data);
+          if (taskRequest.state == Task.STATE.COMPLETED) {
+            final CompletablePromise<R> completablePromise = pendingPromises.get(token);
+            completablePromise.complete((R) data);
+          }
         }
 
         @Override
-        public List<Task> getPendingTasks() {
+        public List<Task> getOpenTasks() {
           return tasks.values().stream().filter(t -> !t.isCompleted()).collect(Collectors.toList());
         }
       };
+  private Logger logger;
 
-  public TaskService() {
+  public TaskService(final Logger logger) {
+    this.logger = logger;
     Workflow.registerListener(listener);
   }
 
-  public R execute(Callback<R> callback, String token) {
-
-    return executeAsync(callback, token).get();
+  public R executeTask(Callback<R> callback, String token) {
+    return executeTaskAsync(callback, token).get();
   }
 
-  public Promise<R> executeAsync(Callback<R> callback, String token) {
+  public Promise<R> executeTaskAsync(Callback<R> callback, String token) {
 
     final Task task = new Task(token);
-    tasks.put(token, task);
     callback.execute();
+    logger.info(" ");
+    tasks.put(token, task);
 
-    CompletablePromise<R> promise = Workflow.newPromise();
+    final CompletablePromise<R> promise = Workflow.newPromise();
     pendingPromises.put(token, promise);
 
     return promise;
   }
 
-  public List<Task> getPendingTasks() {
-    return listener.getPendingTasks();
-  }
-
-  public enum STATUS {
-    PENDING,
-    STARTED,
-    COMPLETED
+  public List<Task> getOpenTasks() {
+    return listener.getOpenTasks();
   }
 
   public interface Callback<T> {
@@ -98,21 +98,21 @@ public class TaskService<R> {
 
   public static class TaskRequest {
 
-    private STATUS status;
+    private Task.STATE state;
     private String data;
     private String token;
 
     public TaskRequest() {}
 
-    public TaskRequest(STATUS status, String data, String token) {
-      this.status = status;
+    public TaskRequest(Task.STATE state, String data, String token) {
+      this.state = state;
       this.data = data;
       this.token = token;
     }
 
     @JsonIgnore
     public boolean isCompleted() {
-      return this.status == STATUS.COMPLETED;
+      return this.state == Task.STATE.COMPLETED;
     }
 
     public String getToken() {

@@ -20,7 +20,6 @@
 package io.temporal.samples.taskinteraction;
 
 import io.temporal.activity.ActivityOptions;
-import io.temporal.samples.updatabletimer.UpdatableTimer;
 import io.temporal.workflow.Promise;
 import io.temporal.workflow.Workflow;
 import java.time.Duration;
@@ -30,9 +29,9 @@ import org.slf4j.Logger;
 
 public class TaskWorkflowImpl implements TaskWorkflow {
 
-  private final Logger logger = Workflow.getLogger(UpdatableTimer.class);
+  private final Logger logger = Workflow.getLogger(TaskWorkflowImpl.class);
 
-  private final TaskService<String> taskService = new TaskService<>();
+  private final TaskService<String> taskService = new TaskService<>(logger);
 
   private final TaskActivity activity =
       Workflow.newActivityStub(
@@ -43,22 +42,28 @@ public class TaskWorkflowImpl implements TaskWorkflow {
   public void execute() {
 
     // Schedule two "tasks" in parallel. The last parameter is the token the client needs
-    // to change the task status, and ultimately to complete the task
-    Promise<String> task1 =
-        taskService.executeAsync(() -> activity.createTask("TODO 1"), generateToken());
-    Promise<String> task2 =
-        taskService.executeAsync(() -> activity.createTask("TODO 2"), generateToken());
+    // to change the task state, and ultimately to complete the task
+    logger.info("About to create async tasks");
+    final Promise<String> task1 =
+        taskService.executeTaskAsync(() -> activity.createTask("TODO 1"), taskToken());
+    final Promise<String> task2 =
+        taskService.executeTaskAsync(() -> activity.createTask("TODO 2"), taskToken());
 
+    logger.info("Awaiting for two tasks to get completed");
     // Block execution until both tasks complete
     Promise.allOf(Arrays.asList(task1, task2)).get();
+    logger.info("Two tasks completed");
 
+    logger.info("About to create one blocking task");
     // Blocking invocation
-    taskService.execute(() -> activity.createTask("TODO 3"), generateToken());
+    taskService.executeTask(() -> activity.createTask("TODO 3"), taskToken());
+    logger.info("Task completed");
+    logger.info("Completing workflow");
   }
 
   private final AtomicInteger atomicInteger = new AtomicInteger(1);
 
-  private String generateToken() {
+  private String taskToken() {
     return Workflow.getInfo().getWorkflowId()
         + "-"
         + Workflow.currentTimeMillis()

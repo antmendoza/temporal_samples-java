@@ -27,8 +27,8 @@ import java.util.List;
 public interface TaskClient {
 
   @SignalMethod
-  void changeStatus(TaskService.TaskRequest task);
+  void updateTask(TaskService.TaskRequest task);
 
   @QueryMethod
-  List<Task> getPendingTasks();
+  List<Task> getOpenTasks();
 }

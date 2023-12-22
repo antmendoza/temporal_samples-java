@@ -1,105 +1,132 @@
+/*
+ *  Copyright (c) 2020 Temporal Technologies, Inc. All Rights Reserved
+ *
+ *  Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ *  Modifications copyright (C) 2017 Uber Technologies, Inc.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"). You may not
+ *  use this file except in compliance with the License. A copy of the License is
+ *  located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ *  or in the "license" file accompanying this file. This file is distributed on
+ *  an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied. See the License for the specific language governing
+ *  permissions and limitations under the License.
+ */
+
 package io.temporal.samples.taskinteraction;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowStub;
 import io.temporal.testing.TestWorkflowRule;
 import io.temporal.worker.WorkerFactoryOptions;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Rule;
 import org.junit.Test;
 
 public class TaskWorkflowImplTest {
 
-  private final TaskWorkflowImplTest.TestActivityImpl testActivity =
-      new TaskWorkflowImplTest.TestActivityImpl();
-
   @Rule
   public TestWorkflowRule testWorkflowRule =
-      createTestEnv(
-              TestWorkflowRule.newBuilder()
-                  .setWorkerFactoryOptions(
-                      WorkerFactoryOptions.newBuilder()
-                          // .setWorkerInterceptors(new RetryOnSignalWorkerInterceptor())
-                          .validateAndBuildWithDefaults())
-                  .setWorkflowTypes(TaskWorkflowImpl.class)
-                  .setActivityImplementations(testActivity))
+      TestWorkflowRule.newBuilder()
+          .setWorkerFactoryOptions(WorkerFactoryOptions.newBuilder().validateAndBuildWithDefaults())
+          .setWorkflowTypes(TaskWorkflowImpl.class)
+          .setDoNotStart(true)
           .build();
 
   @Test
-  public void testHappyPath() {
+  public void testRunWorkflow() throws InterruptedException, ExecutionException {
 
-    TaskWorkflow workflow = testWorkflowRule.newWorkflowStub(TaskWorkflow.class);
-    WorkflowExecution execution = WorkflowClient.start(workflow::execute);
+    final TaskActivity activities = mock(TaskActivity.class);
+    when(activities.createTask(any())).thenReturn("done");
+
+    final CompletableFuture<Void>[] completableFuture =
+        completeFutureWhenActivityIsExecutedTimes(Arrays.asList(2, 3));
+
+    testWorkflowRule.getTestEnvironment().start();
 
     // Get stub to the dynamically registered interface
-    TaskClient client =
+    TaskWorkflow workflow = testWorkflowRule.newWorkflowStub(TaskWorkflow.class);
+
+    // start workflow execution
+    WorkflowExecution execution = WorkflowClient.start(workflow::execute);
+
+    final TaskClient taskClient =
         testWorkflowRule
             .getWorkflowClient()
             .newWorkflowStub(TaskClient.class, execution.getWorkflowId());
 
-    try {
-      Thread.sleep(4000);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
+    // Wait for the activity to get executed two times. Two tasks created
+    completableFuture[0].get();
 
-    final List<Task> tasks_2 = client.getPendingTasks();
+    final List<Task> asyncTasksStarted = taskClient.getOpenTasks();
+    assertEquals(2, asyncTasksStarted.size());
+    // Change tasks state, not completing them yet
+    changeTaskState(taskClient, asyncTasksStarted, Task.STATE.STARTED);
 
-    System.out.println(tasks_2);
+    // The two tasks are still open, lets complete them
+    final List<Task> asyncTasksPending = taskClient.getOpenTasks();
+    assertEquals(2, asyncTasksPending.size());
+    changeTaskState(taskClient, asyncTasksPending, Task.STATE.COMPLETED);
 
-    assertEquals(2, tasks_2.size());
-    completeTasks(client, tasks_2);
+    // Wait for the activity to get executed for the third time. One more task gets created
+    completableFuture[0].get();
 
-    try {
-      Thread.sleep(1000);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
+    final List<Task> syncTask = taskClient.getOpenTasks();
+    assertEquals(1, syncTask.size());
+    changeTaskState(taskClient, syncTask, Task.STATE.STARTED);
+    changeTaskState(taskClient, syncTask, Task.STATE.COMPLETED);
 
-    final List<Task> tasks_1 = client.getPendingTasks();
-    assertEquals(1, tasks_1.size());
-    completeTasks(client, tasks_1);
-
-    WorkflowStub untyped =
+    // Workflow completes
+    final WorkflowStub untyped =
         testWorkflowRule.getWorkflowClient().newUntypedWorkflowStub(execution.getWorkflowId());
-    untyped.getResult(Void.class);
+    untyped.getResult(String.class);
   }
 
-  static class TestActivityImpl implements TaskActivity {
-
-    @Override
-    public String createTask(String task) {
-      return "done";
-    }
-  }
-
-  private static void completeTasks(TaskClient client, List<Task> tasks_1) {
-    tasks_1.forEach(
+  private static void changeTaskState(TaskClient client, List<Task> tasks, Task.STATE state) {
+    tasks.forEach(
         t -> {
-          client.changeStatus(
-              new TaskService.TaskRequest(
-                  TaskService.STATUS.STARTED, "Submitting ", t.getToken()));
-          client.changeStatus(
-              new TaskService.TaskRequest(
-                  TaskService.STATUS.COMPLETED, "Submitting ", t.getToken()));
+          client.updateTask(
+              new TaskService.TaskRequest(state, "Changing state to: " + state, t.getToken()));
         });
   }
 
-  private TestWorkflowRule.Builder createTestEnv(TestWorkflowRule.Builder builder) {
+  private CompletableFuture<Void>[] completeFutureWhenActivityIsExecutedTimes(
+      List<Integer> executions) {
+    final CompletableFuture<Void>[] completableFuture =
+        new CompletableFuture[] {new CompletableFuture<>()};
 
-    if (Boolean.parseBoolean(System.getenv("TEST_LOCALHOST"))) {
+    AtomicInteger integer = new AtomicInteger(0);
+    testWorkflowRule
+        .getWorker()
+        .registerActivitiesImplementations(
+            (TaskActivity)
+                task -> {
+                  integer.getAndIncrement();
 
-      TestWorkflowRule.Builder result = builder;
-      builder
-          .setUseExternalService(true)
-          .setTarget("127.0.0.1:7233") // default 127.0.0.1:7233
-          .setNamespace("default");
-      // default
-      return result;
-    }
-    return builder;
+                  CompletableFuture.runAsync(
+                      () -> {
+                        if (executions.contains(integer.get())) {
+                          completableFuture[0].complete(null);
+                          completableFuture[0] = new CompletableFuture<>();
+                        }
+                      });
+
+                  return "anything";
+                });
+    return completableFuture;
   }
 }

@@ -19,36 +19,36 @@
 
 package io.temporal.samples.taskinteraction.client;
 
-import static io.temporal.samples.taskinteraction.worker.Worker.TASK_QUEUE;
+import static io.temporal.samples.taskinteraction.client.StartWorkflow.WORKFLOW_ID;
 
 import io.temporal.client.WorkflowClient;
-import io.temporal.client.WorkflowOptions;
-import io.temporal.samples.taskinteraction.TaskWorkflow;
+import io.temporal.samples.taskinteraction.Task;
+import io.temporal.samples.taskinteraction.TaskClient;
 import io.temporal.serviceclient.WorkflowServiceStubs;
+import java.util.List;
 
-public class StartWorkflow {
+public class ListOpenTasks {
 
-  static final String WORKFLOW_ID = "TaskWorkflow";
-
-  public static void main(String[] args) {
+  public static void main(String[] args) throws InterruptedException {
 
     final WorkflowServiceStubs service = WorkflowServiceStubs.newLocalServiceStubs();
     final WorkflowClient client = WorkflowClient.newInstance(service);
 
-    final TaskWorkflow workflow =
-        client.newWorkflowStub(
-            TaskWorkflow.class,
-            WorkflowOptions.newBuilder()
-                .setWorkflowId(WORKFLOW_ID)
-                .setTaskQueue(TASK_QUEUE)
-                .build());
+    final TaskClient taskClient = client.newWorkflowStub(TaskClient.class, WORKFLOW_ID);
 
-    System.out.println("Starting workflow " + WORKFLOW_ID);
+    List<Task> openTasks = taskClient.getOpenTasks();
+    while (openTasks.size() > 0) {
 
-    // Execute workflow waiting for it to complete.
-    workflow.execute();
+      System.out.println("\nOpen tasks:[" + openTasks.size() + "]");
+      openTasks.forEach(
+          t -> {
+            System.out.println("  " + t);
+          });
 
-    System.out.println("Workflow completed");
+      Thread.sleep(10000);
+      openTasks = taskClient.getOpenTasks();
+    }
+
     System.exit(0);
   }
 }
