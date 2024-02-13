@@ -6,6 +6,7 @@ Temporal using the [Java SDK](https://github.com/temporalio/sdk-java).
 It contains two modules:
 * [Core](/core): showcases many different SDK features.
 * [SpringBoot](/springboot): showcases SpringBoot autoconfig integration.
+* [SpringBoot Basic](/springboot-basic): Minimal sample showing SpringBoot autoconfig integration without any extra external dependencies.
 
 ## Learn more about Temporal and Java SDK
 
@@ -56,6 +57,7 @@ See the README.md file in each main sample directory for cut/paste Gradle comman
     - [**HelloAsyncActivityCompletion**](/core/src/main/java/io/temporal/samples/hello/HelloAsyncActivityCompletion.java): Demonstrates how to complete an Activity Execution asynchronously.
     - [**HelloAsyncLambda**](/core/src/main/java/io/temporal/samples/hello/HelloAsyncLambda.java): Demonstrates how to execute part of a Workflow asynchronously in a separate task (thread).
     - [**HelloCancellationScope**](/core/src/main/java/io/temporal/samples/hello/HelloCancellationScope.java): Demonstrates how to explicitly cancel parts of a Workflow Execution.
+    - [**HelloCancellationScopeWithTimer**](/core/src/main/java/io/temporal/samples/hello/HelloCancellationScopeWithTimer.java): Demonstrates how to cancel activity when workflow timer fires and complete execution. This can prefered over using workflow run/execution timeouts.
     - [**HelloDetachedCancellationScope**](/core/src/main/java/io/temporal/samples/hello/HelloDetachedCancellationScope.java): Demonstrates how to execute cleanup code after a Workflow Execution has been explicitly cancelled.
     - [**HelloChild**](/core/src/main/java/io/temporal/samples/hello/HelloChild.java): Demonstrates how to execute a simple Child Workflow.
     - [**HelloCron**](/core/src/main/java/io/temporal/samples/hello/HelloCron.java): Demonstrates how to execute a Workflow according to a cron schedule.
@@ -140,7 +142,12 @@ and follow simple instructions there.
 
 1. Start SpringBoot from main repo dir:
 
-       ./gradlew bootRun
+       ./gradlew :springboot:bootRun
+
+To run the basic sample run
+
+       ./gradlew :springboot-basic:bootRun
+
 
 2. Navigate to [localhost:3030](http://localhost:3030)
 
