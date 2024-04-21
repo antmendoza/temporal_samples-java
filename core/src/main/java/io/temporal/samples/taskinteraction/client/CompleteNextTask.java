@@ -24,12 +24,11 @@ import static io.temporal.samples.taskinteraction.client.StartWorkflow.WORKFLOW_
 import io.temporal.client.WorkflowClient;
 import io.temporal.samples.taskinteraction.Task;
 import io.temporal.samples.taskinteraction.TaskClient;
-import io.temporal.samples.taskinteraction.TaskService;
+import io.temporal.samples.taskinteraction.TaskManagerWorkflow;
 import io.temporal.serviceclient.WorkflowServiceStubs;
-import java.util.Arrays;
 import java.util.List;
 
-public class UpdateTask {
+public class CompleteNextTask {
 
   public static void main(String[] args) {
 
@@ -38,17 +37,15 @@ public class UpdateTask {
 
     final TaskClient taskClient = client.newWorkflowStub(TaskClient.class, WORKFLOW_ID);
 
-    final List<Task> openTasks = taskClient.getOpenTasks();
+    // WorkflowTaskManager keeps and manage workflow task lifecycle
+    final TaskManagerWorkflow taskManagerWorkflow =
+        client.newWorkflowStub(TaskManagerWorkflow.class, TaskManagerWorkflow.WORKFLOW_ID);
 
-    final Task randomOpenTask = openTasks.get(0);
-    final List<Task.State> states = Arrays.asList(Task.State.values());
+    final List<Task> pendingTask = taskManagerWorkflow.getPendingTask();
 
-    final Task.State nextState = states.get(states.indexOf(randomOpenTask.getState()) + 1);
+    final Task nextOpenTask = pendingTask.get(0);
 
-    System.out.println("\nUpdating task " + randomOpenTask + " to " + nextState);
-    taskClient.updateTask(
-        new TaskService.UpdateTaskRequest(
-            nextState, new Task.TaskData("Updated to " + nextState), randomOpenTask.getToken()));
+    taskManagerWorkflow.completeTaskByTaskToken(nextOpenTask.getToken());
 
     System.exit(0);
   }

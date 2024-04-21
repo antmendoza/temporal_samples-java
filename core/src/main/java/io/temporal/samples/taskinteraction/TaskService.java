@@ -19,19 +19,22 @@
 
 package io.temporal.samples.taskinteraction;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import io.temporal.activity.ActivityOptions;
 import io.temporal.workflow.CompletablePromise;
 import io.temporal.workflow.Workflow;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.slf4j.Logger;
 
 public class TaskService<R> {
 
-  private final Map<String, Task> tasks = new HashMap<>();
+  private final TaskActivity activity =
+      Workflow.newActivityStub(
+          TaskActivity.class,
+          ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(5)).build());
+
   private final Map<String, CompletablePromise<R>> pendingPromises =
       Collections.synchronizedMap(new HashMap<>());
 
@@ -41,28 +44,12 @@ public class TaskService<R> {
       new TaskClient() {
 
         @Override
-        public void updateTask(UpdateTaskRequest updateTaskRequest) {
+        public void completeByTaskToken(String taskToken) {
 
-          final String token = updateTaskRequest.getToken();
-          final Task.TaskData data = updateTaskRequest.getData();
-          tasks.get(token).setData(data);
+          logger.info("Completing task with token: " + taskToken);
 
-          final Task t = tasks.get(token);
-
-          t.setState(updateTaskRequest.state);
-          tasks.put(t.getToken(), t);
-
-          logger.info("Task updated: " + t);
-
-          if (updateTaskRequest.state == Task.State.completed) {
-            final CompletablePromise<R> completablePromise = pendingPromises.get(token);
-            completablePromise.complete((R) data.getValue());
-          }
-        }
-
-        @Override
-        public List<Task> getOpenTasks() {
-          return tasks.values().stream().filter(t -> !t.isCompleted()).collect(Collectors.toList());
+          final CompletablePromise<R> completablePromise = pendingPromises.get(taskToken);
+          completablePromise.complete(null);
         }
       };
 
@@ -72,12 +59,12 @@ public class TaskService<R> {
 
   private final Logger logger = Workflow.getLogger(TaskService.class);
 
-  public R executeTask(Callback<R> callback, String token) {
+  public R executeTask(Task task) {
 
-    final Task task = new Task(token);
     logger.info("Before creating task : " + task);
-    tasks.put(token, task);
-    callback.execute();
+    final String token = task.getToken();
+    activity.createTask(task);
+
     logger.info("Task created: " + task);
 
     final CompletablePromise<R> promise = Workflow.newPromise();
@@ -88,33 +75,5 @@ public class TaskService<R> {
 
   public interface Callback<T> {
     T execute();
-  }
-
-  public static class UpdateTaskRequest {
-
-    private Task.State state;
-    private Task.TaskData data;
-    private String token;
-
-    public UpdateTaskRequest() {}
-
-    public UpdateTaskRequest(Task.State state, Task.TaskData data, String token) {
-      this.state = state;
-      this.data = data;
-      this.token = token;
-    }
-
-    @JsonIgnore
-    public boolean isCompleted() {
-      return this.state == Task.State.completed;
-    }
-
-    public String getToken() {
-      return token;
-    }
-
-    public Task.TaskData getData() {
-      return data;
-    }
   }
 }

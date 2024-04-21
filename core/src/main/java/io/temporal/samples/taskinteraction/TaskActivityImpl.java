@@ -19,17 +19,33 @@
 
 package io.temporal.samples.taskinteraction;
 
+import static io.temporal.samples.taskinteraction.worker.Worker.TASK_QUEUE;
+
+import io.temporal.client.WorkflowClient;
+import io.temporal.client.WorkflowOptions;
+import io.temporal.client.WorkflowStub;
+import java.util.ArrayList;
+
 public class TaskActivityImpl implements TaskActivity {
+
+  private WorkflowClient workflowClient;
+
+  public TaskActivityImpl(WorkflowClient workflowClient) {
+    this.workflowClient = workflowClient;
+  }
+
   @Override
-  public String createTask(String task) {
+  public void createTask(Task task) {
 
-    // Simulating delay in task creation
-    try {
-      Thread.sleep(500);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
+    WorkflowStub taskManager =
+        workflowClient.newUntypedWorkflowStub(
+            TaskManagerWorkflow.class.getSimpleName(),
+            WorkflowOptions.newBuilder()
+                .setWorkflowId(TaskManagerWorkflow.WORKFLOW_ID)
+                .setTaskQueue(TASK_QUEUE)
+                .build());
 
-    return "activity created";
+    taskManager.signalWithStart(
+        "addTask", new Object[] {task}, new Object[] {new ArrayList<>(), new ArrayList<>()});
   }
 }

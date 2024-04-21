@@ -24,5 +24,5 @@ import io.temporal.activity.ActivityInterface;
 @ActivityInterface
 public interface TaskActivity {
 
-  String createTask(String task);
+  void createTask(Task task);
 }

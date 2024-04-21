@@ -23,7 +23,7 @@ import static io.temporal.samples.taskinteraction.worker.Worker.TASK_QUEUE;
 
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
-import io.temporal.samples.taskinteraction.TaskWorkflow;
+import io.temporal.samples.taskinteraction.MyWorkflowWithTasks;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 
 public class StartWorkflow {
@@ -35,9 +35,9 @@ public class StartWorkflow {
     final WorkflowServiceStubs service = WorkflowServiceStubs.newLocalServiceStubs();
     final WorkflowClient client = WorkflowClient.newInstance(service);
 
-    final TaskWorkflow workflow =
+    final MyWorkflowWithTasks workflow =
         client.newWorkflowStub(
-            TaskWorkflow.class,
+            MyWorkflowWithTasks.class,
             WorkflowOptions.newBuilder()
                 .setWorkflowId(WORKFLOW_ID)
                 .setTaskQueue(TASK_QUEUE)

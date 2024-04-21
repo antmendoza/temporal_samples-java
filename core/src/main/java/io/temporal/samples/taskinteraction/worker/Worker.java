@@ -20,8 +20,9 @@
 package io.temporal.samples.taskinteraction.worker;
 
 import io.temporal.client.WorkflowClient;
+import io.temporal.samples.taskinteraction.MyWorkflowWithTasksImpl;
 import io.temporal.samples.taskinteraction.TaskActivityImpl;
-import io.temporal.samples.taskinteraction.TaskWorkflowImpl;
+import io.temporal.samples.taskinteraction.TaskManagerWorkflowImpl;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.worker.WorkerFactory;
 import io.temporal.worker.WorkerFactoryOptions;
@@ -41,8 +42,9 @@ public class Worker {
     final WorkerFactory factory = WorkerFactory.newInstance(client, factoryOptions);
 
     io.temporal.worker.Worker worker = factory.newWorker(TASK_QUEUE);
-    worker.registerWorkflowImplementationTypes(TaskWorkflowImpl.class);
-    worker.registerActivitiesImplementations(new TaskActivityImpl());
+    worker.registerWorkflowImplementationTypes(
+        MyWorkflowWithTasksImpl.class, TaskManagerWorkflowImpl.class);
+    worker.registerActivitiesImplementations(new TaskActivityImpl(client));
 
     factory.start();
   }
