@@ -19,25 +19,22 @@
 
 package io.temporal.samples.taskinteraction;
 
-import io.temporal.workflow.QueryMethod;
-import io.temporal.workflow.SignalMethod;
-import io.temporal.workflow.WorkflowInterface;
-import io.temporal.workflow.WorkflowMethod;
+import io.temporal.workflow.*;
 import java.util.List;
 
 @WorkflowInterface
-public interface TaskManagerWorkflow {
+public interface WorkflowTaskManager {
 
-  String WORKFLOW_ID = "TaskManagerWorkflow";
+  String WORKFLOW_ID = WorkflowTaskManager.class.getSimpleName();
 
   @WorkflowMethod
   void execute(List<Task> inputPendingTask, List<String> inputTaskToComplete);
 
   @SignalMethod
-  void addTask(Task task);
+  void createTask(Task task);
 
-  @SignalMethod
-  void completeTaskByTaskToken(String taskToken);
+  @UpdateMethod
+  void completeTaskByToken(String taskToken);
 
   @QueryMethod
   List<Task> getPendingTask();

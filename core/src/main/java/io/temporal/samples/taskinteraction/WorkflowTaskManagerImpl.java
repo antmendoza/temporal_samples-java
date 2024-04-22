@@ -1,0 +1,125 @@
+/*
+ *  Copyright (c) 2020 Temporal Technologies, Inc. All Rights Reserved
+ *
+ *  Copyright 2012-2016 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ *
+ *  Modifications copyright (C) 2017 Uber Technologies, Inc.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"). You may not
+ *  use this file except in compliance with the License. A copy of the License is
+ *  located at
+ *
+ *  http://aws.amazon.com/apache2.0
+ *
+ *  or in the "license" file accompanying this file. This file is distributed on
+ *  an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ *  express or implied. See the License for the specific language governing
+ *  permissions and limitations under the License.
+ */
+
+package io.temporal.samples.taskinteraction;
+
+import io.temporal.workflow.Workflow;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.StringTokenizer;
+import org.jetbrains.annotations.NotNull;
+
+public class WorkflowTaskManagerImpl implements WorkflowTaskManager {
+
+  private List<Task> pendingTask;
+
+  private List<String> taskToComplete;
+
+  @Override
+  public void execute(List<Task> inputPendingTask, List<String> inputTaskToComplete) {
+    initPendingTasks(inputPendingTask);
+    initTaskToComplete(inputTaskToComplete);
+
+    while (true) {
+
+      final List<Task> currentTask = new ArrayList<>(pendingTask);
+
+      Workflow.await(
+          () ->
+              // Wait until one task is added / removed
+              currentTask.size() != pendingTask.size()
+                  // or there are pending task to complete
+                  || !taskToComplete.isEmpty());
+
+      if (!taskToComplete.isEmpty()) {
+
+        final String taskToken = taskToComplete.remove(0);
+        final String externalWorkflowId = new StringTokenizer(taskToken, "-").nextToken();
+
+        Workflow.newExternalWorkflowStub(TaskClient.class, externalWorkflowId)
+            .completeTaskByToken(taskToken);
+
+        System.out.println("token to remove " + taskToken);
+        final Task task = getPendingTaskWithToken(taskToken).get();
+        System.out.println("Task to remove " + task);
+        pendingTask.remove(task);
+
+
+        System.out.println("Evaluating  " + getPendingTaskWithToken(taskToken).isEmpty());
+
+
+        if (pendingTask.isEmpty()) {
+          // uncomment the next line to close workflow when there are no pending task.
+          // return;
+        }
+      }
+
+      if (Workflow.getInfo().isContinueAsNewSuggested()
+          // TODO remove
+          || Workflow.getInfo().getHistorySize() > 100) {
+        Workflow.newContinueAsNewStub(WorkflowTaskManager.class)
+            .execute(pendingTask, taskToComplete);
+      }
+    }
+  }
+
+  @NotNull
+  private Optional<Task> getPendingTaskWithToken(final String taskToken) {
+    return pendingTask.stream().filter((t) -> t.getToken().equals(taskToken)).findFirst();
+  }
+
+  private void initTaskToComplete(final List<String> tasks) {
+    if (taskToComplete == null) {
+      taskToComplete = new ArrayList<>();
+    }
+    taskToComplete.addAll(tasks);
+  }
+
+  private void initPendingTasks(final List<Task> tasks) {
+
+    if (pendingTask == null) {
+      pendingTask = new ArrayList<>();
+    }
+    pendingTask.addAll(tasks);
+  }
+
+  @Override
+  public void createTask(Task task) {
+    initPendingTasks(new ArrayList<>());
+    pendingTask.add(task);
+  }
+
+  @Override
+  public void completeTaskByToken(String taskToken) {
+    taskToComplete.add(taskToken);
+
+    Workflow.await(
+        () -> {
+          System.out.println("Evaluating  " + getPendingTaskWithToken(taskToken).isEmpty());
+
+          return true;
+        });
+  }
+
+  @Override
+  public List<Task> getPendingTask() {
+    return pendingTask;
+  }
+}

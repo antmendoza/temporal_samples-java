@@ -19,25 +19,50 @@
 
 package io.temporal.samples.taskinteraction;
 
+import io.temporal.workflow.Async;
+import io.temporal.workflow.Promise;
 import io.temporal.workflow.Workflow;
+import java.util.Arrays;
 import org.slf4j.Logger;
 
-public class MyWorkflowWithTasksImpl implements MyWorkflowWithTasks {
+public class WorkflowWithTasksImpl implements WorkflowWithTasks {
 
-  private final Logger logger = Workflow.getLogger(MyWorkflowWithTasksImpl.class);
+  private final Logger logger = Workflow.getLogger(WorkflowWithTasksImpl.class);
 
-  private final TaskService<String> taskService = new TaskService<>();
+  private final TaskService<Void> taskService = new TaskService<>();
 
   @Override
   public void execute() {
-    final TaskToken taskToken = new TaskToken();
 
     // Schedule two "tasks" in parallel. The last parameter is the token the client needs
     // to change the task state, and to complete the task eventually
 
+    final TaskToken taskToken = new TaskToken();
+
+    // Schedule two "tasks" in parallel. The last parameter is the token the client needs
+    // to change the task state, and ultimately to complete the task
+    logger.info("About to create async tasks");
+    final Promise<Void> task1 =
+        Async.procedure(
+            () -> {
+              final Task task = new Task(taskToken.getNext(), new Task.TaskTitle("TODO 1"));
+              taskService.executeTask(task);
+            });
+
+    final Promise<Void> task2 =
+        Async.procedure(
+            () -> {
+              final Task task = new Task(taskToken.getNext(), new Task.TaskTitle("TODO 2"));
+              taskService.executeTask(task);
+            });
+
+    logger.info("Awaiting for the two tasks to complete");
+    // Block execution until both tasks complete
+    Promise.allOf(Arrays.asList(task1, task2)).get();
+    logger.info("Tasks completed");
+
     // Blocking invocation
-    taskService.executeTask(new Task(taskToken.getNext(), new Task.TaskTitle("TODO 1")));
-    logger.info("Task completed");
+    taskService.executeTask(new Task(taskToken.getNext(), new Task.TaskTitle("TODO 3")));
     logger.info("Completing workflow");
   }
 

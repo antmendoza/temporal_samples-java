@@ -20,46 +20,36 @@
 package io.temporal.samples.taskinteraction;
 
 import io.temporal.activity.ActivityOptions;
+import io.temporal.samples.taskinteraction.activity.ActivityTask;
 import io.temporal.workflow.CompletablePromise;
 import io.temporal.workflow.Workflow;
 import java.time.Duration;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 
 public class TaskService<R> {
 
-  private final TaskActivity activity =
+  private final ActivityTask activity =
       Workflow.newActivityStub(
-          TaskActivity.class,
+          ActivityTask.class,
           ActivityOptions.newBuilder().setStartToCloseTimeout(Duration.ofSeconds(5)).build());
 
-  private final Map<String, CompletablePromise<R>> pendingPromises =
-      Collections.synchronizedMap(new HashMap<>());
-
-  // Exposes signal and query methods that
-  // allow us to interact with the workflow execution
+  private final Map<String, CompletablePromise<R>> pendingPromises = new HashMap<>();
+  private final Logger logger = Workflow.getLogger(TaskService.class);
   private final TaskClient listener =
-      new TaskClient() {
+      taskToken -> {
+        logger.info("Completing task with token: " + taskToken);
 
-        @Override
-        public void completeByTaskToken(String taskToken) {
-
-          logger.info("Completing task with token: " + taskToken);
-
-          final CompletablePromise<R> completablePromise = pendingPromises.get(taskToken);
-          completablePromise.complete(null);
-        }
+        final CompletablePromise<R> completablePromise = pendingPromises.get(taskToken);
+        completablePromise.complete(null);
       };
 
   public TaskService() {
     Workflow.registerListener(listener);
   }
 
-  private final Logger logger = Workflow.getLogger(TaskService.class);
-
-  public R executeTask(Task task) {
+  public void executeTask(Task task) {
 
     logger.info("Before creating task : " + task);
     final String token = task.getToken();
@@ -70,10 +60,9 @@ public class TaskService<R> {
     final CompletablePromise<R> promise = Workflow.newPromise();
     pendingPromises.put(token, promise);
 
-    return promise.get();
-  }
+    // Wait promise to complete or fail
+    promise.get();
 
-  public interface Callback<T> {
-    T execute();
+    logger.info("Task completed: " + task);
   }
 }

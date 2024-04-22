@@ -36,7 +36,7 @@ The worker will start the workflow execution and schedule the two activities:
 
 Update one of the open task to the next state (PENDING -> STARTED -> COMPLETED)
 ```bash
-./gradlew -q execute -PmainClass=io.temporal.samples.taskinteraction.client.CompleteNextTask
+./gradlew -q execute -PmainClass=io.temporal.samples.taskinteraction.client.QueryAndCompleteTasks
 ```
 
 The workflow has three task, each task has three different states and is created in PENDING state. 

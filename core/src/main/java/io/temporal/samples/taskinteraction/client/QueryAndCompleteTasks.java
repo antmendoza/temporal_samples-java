@@ -19,33 +19,32 @@
 
 package io.temporal.samples.taskinteraction.client;
 
-import static io.temporal.samples.taskinteraction.client.StartWorkflow.WORKFLOW_ID;
-
 import io.temporal.client.WorkflowClient;
 import io.temporal.samples.taskinteraction.Task;
-import io.temporal.samples.taskinteraction.TaskClient;
-import io.temporal.samples.taskinteraction.TaskManagerWorkflow;
+import io.temporal.samples.taskinteraction.WorkflowTaskManager;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import java.util.List;
 
-public class CompleteNextTask {
+public class QueryAndCompleteTasks {
 
   public static void main(String[] args) {
 
     final WorkflowServiceStubs service = WorkflowServiceStubs.newLocalServiceStubs();
     final WorkflowClient client = WorkflowClient.newInstance(service);
 
-    final TaskClient taskClient = client.newWorkflowStub(TaskClient.class, WORKFLOW_ID);
-
     // WorkflowTaskManager keeps and manage workflow task lifecycle
-    final TaskManagerWorkflow taskManagerWorkflow =
-        client.newWorkflowStub(TaskManagerWorkflow.class, TaskManagerWorkflow.WORKFLOW_ID);
+    final WorkflowTaskManager workflowTaskManager =
+        client.newWorkflowStub(WorkflowTaskManager.class, WorkflowTaskManager.WORKFLOW_ID);
 
-    final List<Task> pendingTask = taskManagerWorkflow.getPendingTask();
+    //    while (true) {
+    final List<Task> pendingTask = workflowTaskManager.getPendingTask();
 
+    if (pendingTask.isEmpty()) {
+      //  break;
+    }
     final Task nextOpenTask = pendingTask.get(0);
-
-    taskManagerWorkflow.completeTaskByTaskToken(nextOpenTask.getToken());
+    workflowTaskManager.completeTaskByToken(nextOpenTask.getToken());
+    // }
 
     System.exit(0);
   }

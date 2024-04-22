@@ -22,10 +22,9 @@ package io.temporal.samples.taskinteraction;
 import io.temporal.workflow.SignalMethod;
 import io.temporal.workflow.WorkflowInterface;
 
-/** Interface used to dynamically register signal and query handlers from the interceptor. */
 @WorkflowInterface
 public interface TaskClient {
 
   @SignalMethod
-  void completeByTaskToken(String taskToken);
+  void completeTaskByToken(String taskToken);
 }

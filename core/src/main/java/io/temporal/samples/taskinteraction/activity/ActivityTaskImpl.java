@@ -17,20 +17,22 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.taskinteraction;
+package io.temporal.samples.taskinteraction.activity;
 
 import static io.temporal.samples.taskinteraction.worker.Worker.TASK_QUEUE;
 
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
+import io.temporal.samples.taskinteraction.Task;
+import io.temporal.samples.taskinteraction.WorkflowTaskManager;
 import java.util.ArrayList;
 
-public class TaskActivityImpl implements TaskActivity {
+public class ActivityTaskImpl implements ActivityTask {
 
   private WorkflowClient workflowClient;
 
-  public TaskActivityImpl(WorkflowClient workflowClient) {
+  public ActivityTaskImpl(WorkflowClient workflowClient) {
     this.workflowClient = workflowClient;
   }
 
@@ -39,13 +41,13 @@ public class TaskActivityImpl implements TaskActivity {
 
     WorkflowStub taskManager =
         workflowClient.newUntypedWorkflowStub(
-            TaskManagerWorkflow.class.getSimpleName(),
+            WorkflowTaskManager.class.getSimpleName(),
             WorkflowOptions.newBuilder()
-                .setWorkflowId(TaskManagerWorkflow.WORKFLOW_ID)
+                .setWorkflowId(WorkflowTaskManager.WORKFLOW_ID)
                 .setTaskQueue(TASK_QUEUE)
                 .build());
 
     taskManager.signalWithStart(
-        "addTask", new Object[] {task}, new Object[] {new ArrayList<>(), new ArrayList<>()});
+        "createTask", new Object[] {task}, new Object[] {new ArrayList<>(), new ArrayList<>()});
   }
 }
