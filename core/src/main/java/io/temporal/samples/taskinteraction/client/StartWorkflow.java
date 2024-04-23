@@ -25,11 +25,10 @@ import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.samples.taskinteraction.WorkflowWithTasks;
 import io.temporal.serviceclient.WorkflowServiceStubs;
-import java.util.concurrent.CompletableFuture;
 
 public class StartWorkflow {
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws InterruptedException {
 
     final WorkflowServiceStubs service = WorkflowServiceStubs.newLocalServiceStubs();
     final WorkflowClient client = WorkflowClient.newInstance(service);
@@ -37,9 +36,9 @@ public class StartWorkflow {
     extracted(client);
     while (true) {
 
-      CompletableFuture.runAsync(() -> {});
+      extracted(client);
 
-      break;
+      Thread.sleep(200);
     }
   }
 
@@ -48,13 +47,13 @@ public class StartWorkflow {
         client.newWorkflowStub(
             WorkflowWithTasks.class,
             WorkflowOptions.newBuilder()
-                .setWorkflowId(WorkflowWithTasks.WORKFLOW_ID + Math.random())
+                .setWorkflowId(WorkflowWithTasks.WORKFLOW_ID + System.currentTimeMillis())
                 .setTaskQueue(TASK_QUEUE)
                 .build());
 
     System.out.println("Starting workflow " + WorkflowWithTasks.WORKFLOW_ID);
 
     // Execute workflow waiting for it to complete.
-    workflow.execute();
+    WorkflowClient.execute(workflow::execute);
   }
 }

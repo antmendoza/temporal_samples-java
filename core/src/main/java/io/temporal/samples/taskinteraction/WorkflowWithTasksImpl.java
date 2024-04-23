@@ -67,16 +67,11 @@ public class WorkflowWithTasksImpl implements WorkflowWithTasks {
   }
 
   private static class TaskToken {
-
     private int taskToken = 1;
 
     public String getNext() {
 
-      return Workflow.getInfo().getWorkflowId()
-          + "-"
-          + Workflow.currentTimeMillis()
-          + "-"
-          + taskToken++;
+      return Workflow.getInfo().getWorkflowId() + "-" + taskToken++;
     }
   }
 }

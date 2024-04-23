@@ -25,27 +25,39 @@ import io.temporal.samples.taskinteraction.WorkflowTaskManager;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import java.util.List;
 
-public class QueryAndCompleteTasks {
+public class CompleteTask {
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws InterruptedException {
 
     final WorkflowServiceStubs service = WorkflowServiceStubs.newLocalServiceStubs();
     final WorkflowClient client = WorkflowClient.newInstance(service);
 
-    // WorkflowTaskManager keeps and manage workflow task lifecycle
-    final WorkflowTaskManager workflowTaskManager =
-        client.newWorkflowStub(WorkflowTaskManager.class, WorkflowTaskManager.WORKFLOW_ID);
+    while (true) {
 
-    //    while (true) {
-    final List<Task> pendingTask = workflowTaskManager.getPendingTask();
+      // WorkflowTaskManager keeps and manage workflow task lifecycle
+      final WorkflowTaskManager workflowTaskManager =
+          client.newWorkflowStub(WorkflowTaskManager.class, WorkflowTaskManager.WORKFLOW_ID);
 
-    if (pendingTask.isEmpty()) {
-      //  break;
+      Thread.sleep(200);
+      final List<Task> pendingTask = getPendingTask(workflowTaskManager);
+      System.out.println("Pending task " + pendingTask);
+
+      if (pendingTask.isEmpty()) {
+        // Thread.sleep(1000);
+        continue;
+      }
+
+      final Task nextOpenTask = pendingTask.get(0);
+      System.out.println("Completing task with token " + nextOpenTask);
+      workflowTaskManager.completeTaskByToken(nextOpenTask.getToken());
+
+      System.out.println("Pending task " + getPendingTask(workflowTaskManager));
     }
-    final Task nextOpenTask = pendingTask.get(0);
-    workflowTaskManager.completeTaskByToken(nextOpenTask.getToken());
-    // }
 
-    System.exit(0);
+    //    System.exit(0);
+  }
+
+  private static List<Task> getPendingTask(final WorkflowTaskManager workflowTaskManager) {
+    return workflowTaskManager.getPendingTask();
   }
 }

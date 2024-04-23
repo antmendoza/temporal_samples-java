@@ -56,24 +56,11 @@ public class WorkflowTaskManagerImpl implements WorkflowTaskManager {
         Workflow.newExternalWorkflowStub(TaskClient.class, externalWorkflowId)
             .completeTaskByToken(taskToken);
 
-        System.out.println("token to remove " + taskToken);
         final Task task = getPendingTaskWithToken(taskToken).get();
-        System.out.println("Task to remove " + task);
         pendingTask.remove(task);
-
-
-        System.out.println("Evaluating  " + getPendingTaskWithToken(taskToken).isEmpty());
-
-
-        if (pendingTask.isEmpty()) {
-          // uncomment the next line to close workflow when there are no pending task.
-          // return;
-        }
       }
 
-      if (Workflow.getInfo().isContinueAsNewSuggested()
-          // TODO remove
-          || Workflow.getInfo().getHistorySize() > 100) {
+      if (Workflow.getInfo().isContinueAsNewSuggested()) {
         Workflow.newContinueAsNewStub(WorkflowTaskManager.class)
             .execute(pendingTask, taskToComplete);
       }
@@ -108,13 +95,15 @@ public class WorkflowTaskManagerImpl implements WorkflowTaskManager {
 
   @Override
   public void completeTaskByToken(String taskToken) {
+
     taskToComplete.add(taskToken);
 
     Workflow.await(
         () -> {
-          System.out.println("Evaluating  " + getPendingTaskWithToken(taskToken).isEmpty());
+          final boolean taskCompleted =
+              getPendingTask().stream().filter((t) -> t.getToken() == taskToken).count() == 0;
 
-          return true;
+          return taskCompleted;
         });
   }
 
