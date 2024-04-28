@@ -2,6 +2,8 @@
 
 This example demonstrate a generic implementation for "User Tasks" interaction in Temporal.
 
+TODO 
+
 Temporal does not have such concept of "human task", as BPM systems, but it can be easily implemented with 
 the pattern: 
 - The main workflow have an activity (or local activity) that send the request to an external service. 

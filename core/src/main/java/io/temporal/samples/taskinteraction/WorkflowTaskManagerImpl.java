@@ -30,7 +30,7 @@ public class WorkflowTaskManagerImpl implements WorkflowTaskManager {
 
   private List<Task> pendingTask;
 
-  private List<String> taskToComplete;
+  private List<String> tasksToComplete;
 
   @Override
   public void execute(List<Task> inputPendingTask, List<String> inputTaskToComplete) {
@@ -46,23 +46,27 @@ public class WorkflowTaskManagerImpl implements WorkflowTaskManager {
               // Wait until one task is added / removed
               currentTask.size() != pendingTask.size()
                   // or there are pending task to complete
-                  || !taskToComplete.isEmpty());
+                  || !tasksToComplete.isEmpty());
 
-      if (!taskToComplete.isEmpty()) {
+      if (!tasksToComplete.isEmpty()) {
 
-        final String taskToken = taskToComplete.remove(0);
-        final String externalWorkflowId = new StringTokenizer(taskToken, "-").nextToken();
+        System.out.println("tasksToComplete >>>>> " + tasksToComplete);
+
+        final String taskToken = tasksToComplete.remove(0);
+        final String externalWorkflowId = new StringTokenizer(taskToken, "_").nextToken();
 
         Workflow.newExternalWorkflowStub(TaskClient.class, externalWorkflowId)
             .completeTaskByToken(taskToken);
 
+        System.out.println("getPendingTaskWithToken >>>>> " + taskToken);
         final Task task = getPendingTaskWithToken(taskToken).get();
+
         pendingTask.remove(task);
       }
 
       if (Workflow.getInfo().isContinueAsNewSuggested()) {
         Workflow.newContinueAsNewStub(WorkflowTaskManager.class)
-            .execute(pendingTask, taskToComplete);
+            .execute(pendingTask, tasksToComplete);
       }
     }
   }
@@ -73,10 +77,10 @@ public class WorkflowTaskManagerImpl implements WorkflowTaskManager {
   }
 
   private void initTaskToComplete(final List<String> tasks) {
-    if (taskToComplete == null) {
-      taskToComplete = new ArrayList<>();
+    if (tasksToComplete == null) {
+      tasksToComplete = new ArrayList<>();
     }
-    taskToComplete.addAll(tasks);
+    tasksToComplete.addAll(tasks);
   }
 
   private void initPendingTasks(final List<Task> tasks) {
@@ -89,6 +93,8 @@ public class WorkflowTaskManagerImpl implements WorkflowTaskManager {
 
   @Override
   public void createTask(Task task) {
+    System.out.println("creating task " + task);
+
     initPendingTasks(new ArrayList<>());
     pendingTask.add(task);
   }
@@ -96,7 +102,10 @@ public class WorkflowTaskManagerImpl implements WorkflowTaskManager {
   @Override
   public void completeTaskByToken(String taskToken) {
 
-    taskToComplete.add(taskToken);
+    System.out.println("completeTaskByToken adding taskToken >>>>> " + taskToken);
+    System.out.println("completeTaskByToken >>>>> " + tasksToComplete);
+
+    tasksToComplete.add(taskToken);
 
     Workflow.await(
         () -> {

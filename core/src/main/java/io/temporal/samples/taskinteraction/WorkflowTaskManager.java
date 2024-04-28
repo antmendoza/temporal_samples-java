@@ -30,7 +30,7 @@ public interface WorkflowTaskManager {
   @WorkflowMethod
   void execute(List<Task> inputPendingTask, List<String> inputTaskToComplete);
 
-  @SignalMethod
+  @UpdateMethod
   void createTask(Task task);
 
   @UpdateMethod

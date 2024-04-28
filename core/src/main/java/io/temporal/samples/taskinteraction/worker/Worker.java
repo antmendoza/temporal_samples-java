@@ -29,7 +29,7 @@ import io.temporal.worker.WorkerFactoryOptions;
 
 public class Worker {
 
-  public static final String TASK_QUEUE = "TaskWorkflowImplTaskQueue";
+  public static final String TASK_QUEUE = "TaskInteractionQueue";
 
   public static void main(String[] args) {
 

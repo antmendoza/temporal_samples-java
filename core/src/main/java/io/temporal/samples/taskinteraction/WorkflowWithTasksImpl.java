@@ -71,7 +71,7 @@ public class WorkflowWithTasksImpl implements WorkflowWithTasks {
 
     public String getNext() {
 
-      return Workflow.getInfo().getWorkflowId() + "-" + taskToken++;
+      return Workflow.getInfo().getWorkflowId() + "_" + taskToken++;
     }
   }
 }

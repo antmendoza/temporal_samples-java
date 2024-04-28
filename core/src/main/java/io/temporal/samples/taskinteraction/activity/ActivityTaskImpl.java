@@ -19,18 +19,17 @@
 
 package io.temporal.samples.taskinteraction.activity;
 
-import static io.temporal.samples.taskinteraction.worker.Worker.TASK_QUEUE;
-
+import io.temporal.activity.Activity;
 import io.temporal.client.WorkflowClient;
+import io.temporal.client.WorkflowExecutionAlreadyStarted;
 import io.temporal.client.WorkflowOptions;
-import io.temporal.client.WorkflowStub;
 import io.temporal.samples.taskinteraction.Task;
 import io.temporal.samples.taskinteraction.WorkflowTaskManager;
 import java.util.ArrayList;
 
 public class ActivityTaskImpl implements ActivityTask {
 
-  private WorkflowClient workflowClient;
+  private final WorkflowClient workflowClient;
 
   public ActivityTaskImpl(WorkflowClient workflowClient) {
     this.workflowClient = workflowClient;
@@ -39,15 +38,23 @@ public class ActivityTaskImpl implements ActivityTask {
   @Override
   public void createTask(Task task) {
 
-    WorkflowStub taskManager =
-        workflowClient.newUntypedWorkflowStub(
-            WorkflowTaskManager.class.getSimpleName(),
-            WorkflowOptions.newBuilder()
-                .setWorkflowId(WorkflowTaskManager.WORKFLOW_ID)
-                .setTaskQueue(TASK_QUEUE)
-                .build());
+    final String taskQueue = Activity.getExecutionContext().getInfo().getActivityTaskQueue();
 
-    taskManager.signalWithStart(
-        "createTask", new Object[] {task}, new Object[] {new ArrayList<>(), new ArrayList<>()});
+    final WorkflowOptions workflowOptions =
+        WorkflowOptions.newBuilder()
+            .setWorkflowId(WorkflowTaskManager.WORKFLOW_ID)
+            .setTaskQueue(taskQueue)
+            .build();
+
+    final WorkflowTaskManager taskManager =
+        workflowClient.newWorkflowStub(WorkflowTaskManager.class, workflowOptions);
+    try {
+      WorkflowClient.start(taskManager::execute, new ArrayList<>(), new ArrayList<>());
+    } catch (WorkflowExecutionAlreadyStarted e) {
+      // expected exception if workflow was started by a previous activity execution.
+      // This will be handled differently once updateWithStart is implemented
+    }
+
+    taskManager.createTask(task);
   }
 }
