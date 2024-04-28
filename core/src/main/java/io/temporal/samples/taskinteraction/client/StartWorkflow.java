@@ -33,16 +33,6 @@ public class StartWorkflow {
     final WorkflowServiceStubs service = WorkflowServiceStubs.newLocalServiceStubs();
     final WorkflowClient client = WorkflowClient.newInstance(service);
 
-    extracted(client);
-    while (true) {
-
-      extracted(client);
-
-      Thread.sleep(200);
-    }
-  }
-
-  private static void extracted(final WorkflowClient client) {
     final WorkflowWithTasks workflow =
         client.newWorkflowStub(
             WorkflowWithTasks.class,
@@ -51,9 +41,13 @@ public class StartWorkflow {
                 .setTaskQueue(TASK_QUEUE)
                 .build());
 
-    System.out.println("Starting workflow " + WorkflowWithTasks.WORKFLOW_ID);
+    System.out.println("Starting workflow: " + WorkflowWithTasks.WORKFLOW_ID);
 
     // Execute workflow waiting for it to complete.
-    WorkflowClient.execute(workflow::execute);
+    workflow.execute();
+
+    System.out.println("Workflow completed: " + WorkflowWithTasks.WORKFLOW_ID);
+
+    System.exit(0);
   }
 }

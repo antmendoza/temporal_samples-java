@@ -50,15 +50,12 @@ public class WorkflowTaskManagerImpl implements WorkflowTaskManager {
 
       if (!tasksToComplete.isEmpty()) {
 
-        System.out.println("tasksToComplete >>>>> " + tasksToComplete);
-
         final String taskToken = tasksToComplete.remove(0);
         final String externalWorkflowId = new StringTokenizer(taskToken, "_").nextToken();
 
         Workflow.newExternalWorkflowStub(TaskClient.class, externalWorkflowId)
             .completeTaskByToken(taskToken);
 
-        System.out.println("getPendingTaskWithToken >>>>> " + taskToken);
         final Task task = getPendingTaskWithToken(taskToken).get();
 
         pendingTask.remove(task);
@@ -93,17 +90,12 @@ public class WorkflowTaskManagerImpl implements WorkflowTaskManager {
 
   @Override
   public void createTask(Task task) {
-    System.out.println("creating task " + task);
-
     initPendingTasks(new ArrayList<>());
     pendingTask.add(task);
   }
 
   @Override
   public void completeTaskByToken(String taskToken) {
-
-    System.out.println("completeTaskByToken adding taskToken >>>>> " + taskToken);
-    System.out.println("completeTaskByToken >>>>> " + tasksToComplete);
 
     tasksToComplete.add(taskToken);
 
