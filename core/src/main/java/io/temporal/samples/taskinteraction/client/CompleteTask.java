@@ -25,6 +25,10 @@ import io.temporal.samples.taskinteraction.WorkflowTaskManager;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import java.util.List;
 
+/**
+ * This class helps to complete tasks in the external workflow. Queries for pending task and
+ * complete one of them
+ */
 public class CompleteTask {
 
   public static void main(String[] args) throws InterruptedException {
@@ -32,29 +36,22 @@ public class CompleteTask {
     final WorkflowServiceStubs service = WorkflowServiceStubs.newLocalServiceStubs();
     final WorkflowClient client = WorkflowClient.newInstance(service);
 
-    while (true) {
+    // WorkflowTaskManager keeps and manage workflow task lifecycle
+    final WorkflowTaskManager workflowTaskManager =
+        client.newWorkflowStub(WorkflowTaskManager.class, WorkflowTaskManager.WORKFLOW_ID);
 
-      // WorkflowTaskManager keeps and manage workflow task lifecycle
-      final WorkflowTaskManager workflowTaskManager =
-          client.newWorkflowStub(WorkflowTaskManager.class, WorkflowTaskManager.WORKFLOW_ID);
+    Thread.sleep(200);
+    final List<Task> pendingTask = getPendingTask(workflowTaskManager);
+    System.out.println("Pending task " + pendingTask);
 
-      Thread.sleep(200);
-      final List<Task> pendingTask = getPendingTask(workflowTaskManager);
-      System.out.println("Pending task " + pendingTask);
-
-      if (pendingTask.isEmpty()) {
-        // Thread.sleep(1000);
-        continue;
-      }
+    if (!pendingTask.isEmpty()) {
 
       final Task nextOpenTask = pendingTask.get(0);
       System.out.println("Completing task with token " + nextOpenTask);
       workflowTaskManager.completeTaskByToken(nextOpenTask.getToken());
-
-      System.out.println("Pending task " + getPendingTask(workflowTaskManager));
     }
 
-    //    System.exit(0);
+    System.out.println("Pending task " + getPendingTask(workflowTaskManager));
   }
 
   private static List<Task> getPendingTask(final WorkflowTaskManager workflowTaskManager) {

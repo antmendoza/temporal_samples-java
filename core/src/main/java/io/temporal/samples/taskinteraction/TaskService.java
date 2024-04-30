@@ -28,6 +28,10 @@ import java.util.HashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 
+/**
+ * This class responsibility is to register the task in the external system and waits for the
+ * external system to signal back.
+ */
 public class TaskService<R> {
 
   private final ActivityTask activity =

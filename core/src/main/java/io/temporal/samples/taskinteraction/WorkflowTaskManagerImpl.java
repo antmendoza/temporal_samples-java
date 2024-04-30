@@ -20,11 +20,7 @@
 package io.temporal.samples.taskinteraction;
 
 import io.temporal.workflow.Workflow;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.StringTokenizer;
-import org.jetbrains.annotations.NotNull;
+import java.util.*;
 
 public class WorkflowTaskManagerImpl implements WorkflowTaskManager {
 
@@ -39,27 +35,21 @@ public class WorkflowTaskManagerImpl implements WorkflowTaskManager {
 
     while (true) {
 
-      final List<Task> currentTask = new ArrayList<>(pendingTask);
-
       Workflow.await(
           () ->
-              // Wait until one task is added / removed
-              currentTask.size() != pendingTask.size()
-                  // or there are pending task to complete
-                  || !tasksToComplete.isEmpty());
+              // Wait until there are pending task to complete
+              !tasksToComplete.isEmpty());
 
-      if (!tasksToComplete.isEmpty()) {
+      final String taskToken = tasksToComplete.remove(0);
 
-        final String taskToken = tasksToComplete.remove(0);
-        final String externalWorkflowId = new StringTokenizer(taskToken, "_").nextToken();
+      // Find the workflow id of the workflow we have to signal back
+      final String externalWorkflowId = new StringTokenizer(taskToken, "_").nextToken();
 
-        Workflow.newExternalWorkflowStub(TaskClient.class, externalWorkflowId)
-            .completeTaskByToken(taskToken);
+      Workflow.newExternalWorkflowStub(TaskClient.class, externalWorkflowId)
+          .completeTaskByToken(taskToken);
 
-        final Task task = getPendingTaskWithToken(taskToken).get();
-
-        pendingTask.remove(task);
-      }
+      final Task task = getPendingTaskWithToken(taskToken).get();
+      pendingTask.remove(task);
 
       if (Workflow.getInfo().isContinueAsNewSuggested()) {
         Workflow.newContinueAsNewStub(WorkflowTaskManager.class)
@@ -68,7 +58,31 @@ public class WorkflowTaskManagerImpl implements WorkflowTaskManager {
     }
   }
 
-  @NotNull
+  @Override
+  public void createTask(Task task) {
+    initPendingTasks(new ArrayList<>());
+    pendingTask.add(task);
+  }
+
+  @Override
+  public void completeTaskByToken(String taskToken) {
+
+    tasksToComplete.add(taskToken);
+
+    Workflow.await(
+        () -> {
+          final boolean taskCompleted =
+              getPendingTask().stream().noneMatch((t) -> Objects.equals(t.getToken(), taskToken));
+
+          return taskCompleted;
+        });
+  }
+
+  @Override
+  public List<Task> getPendingTask() {
+    return pendingTask;
+  }
+
   private Optional<Task> getPendingTaskWithToken(final String taskToken) {
     return pendingTask.stream().filter((t) -> t.getToken().equals(taskToken)).findFirst();
   }
@@ -86,30 +100,5 @@ public class WorkflowTaskManagerImpl implements WorkflowTaskManager {
       pendingTask = new ArrayList<>();
     }
     pendingTask.addAll(tasks);
-  }
-
-  @Override
-  public void createTask(Task task) {
-    initPendingTasks(new ArrayList<>());
-    pendingTask.add(task);
-  }
-
-  @Override
-  public void completeTaskByToken(String taskToken) {
-
-    tasksToComplete.add(taskToken);
-
-    Workflow.await(
-        () -> {
-          final boolean taskCompleted =
-              getPendingTask().stream().filter((t) -> t.getToken() == taskToken).count() == 0;
-
-          return taskCompleted;
-        });
-  }
-
-  @Override
-  public List<Task> getPendingTask() {
-    return pendingTask;
   }
 }

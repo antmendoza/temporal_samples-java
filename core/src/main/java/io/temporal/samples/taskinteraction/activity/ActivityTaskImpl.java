@@ -55,6 +55,7 @@ public class ActivityTaskImpl implements ActivityTask {
       // This will be handled differently once updateWithStart is implemented
     }
 
+    // register the "task" to the external workflow that manages task lifecycle
     taskManager.createTask(task);
   }
 }

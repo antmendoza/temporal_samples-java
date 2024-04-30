@@ -26,6 +26,7 @@ import io.temporal.client.WorkflowOptions;
 import io.temporal.samples.taskinteraction.WorkflowWithTasks;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 
+/** Client that start schedule WorkflowWithTasks. */
 public class StartWorkflow {
 
   public static void main(String[] args) throws InterruptedException {
@@ -43,7 +44,7 @@ public class StartWorkflow {
 
     System.out.println("Starting workflow: " + WorkflowWithTasks.WORKFLOW_ID);
 
-    // Execute workflow waiting for it to complete.
+    // Schedule workflow and waiting for it to complete.
     workflow.execute();
 
     System.out.println("Workflow completed: " + WorkflowWithTasks.WORKFLOW_ID);

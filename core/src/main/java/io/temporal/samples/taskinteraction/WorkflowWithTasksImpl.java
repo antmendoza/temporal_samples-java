@@ -25,6 +25,7 @@ import io.temporal.workflow.Workflow;
 import java.util.Arrays;
 import org.slf4j.Logger;
 
+/** Workflow that creates three task and waits for them to complete */
 public class WorkflowWithTasksImpl implements WorkflowWithTasks {
 
   private final Logger logger = Workflow.getLogger(WorkflowWithTasksImpl.class);
@@ -35,12 +36,10 @@ public class WorkflowWithTasksImpl implements WorkflowWithTasks {
   public void execute() {
 
     // Schedule two "tasks" in parallel. The last parameter is the token the client needs
-    // to change the task state, and to complete the task eventually
-
+    // to unblock/complete the task. This token contains the workflowId that the
+    // client can use to create the workflow stub.
     final TaskToken taskToken = new TaskToken();
 
-    // Schedule two "tasks" in parallel. The last parameter is the token the client needs
-    // to change the task state, and ultimately to complete the task
     logger.info("About to create async tasks");
     final Promise<Void> task1 =
         Async.procedure(
