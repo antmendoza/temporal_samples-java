@@ -48,6 +48,8 @@ See the README.md file in each main sample directory for cut/paste Gradle comman
 #### Hello samples
 
 - [**Hello**](/core/src/main/java/io/temporal/samples/hello): This sample includes a number of individual Workflows that can be executed independently. Each one demonstrates something specific.
+
+    - [**HelloAccumulator**](/core/src/main/java/io/temporal/samples/hello/HelloAccumulator.java): Demonstrates a Workflow Definition that accumulates signals and continues as new.
     - [**HelloActivity**](/core/src/main/java/io/temporal/samples/hello/HelloActivity.java): Demonstrates a Workflow Definition that executes a single Activity.
     - [**HelloActivityRetry**](/core/src/main/java/io/temporal/samples/hello/HelloActivityRetry.java): Demonstrates how to Retry an Activity Execution.
     - [**HelloActivityExclusiveChoice**](/core/src/main/java/io/temporal/samples/hello/HelloActivityExclusiveChoice.java): Demonstrates how to execute Activities based on dynamic input.
@@ -62,6 +64,7 @@ See the README.md file in each main sample directory for cut/paste Gradle comman
     - [**HelloChild**](/core/src/main/java/io/temporal/samples/hello/HelloChild.java): Demonstrates how to execute a simple Child Workflow.
     - [**HelloCron**](/core/src/main/java/io/temporal/samples/hello/HelloCron.java): Demonstrates how to execute a Workflow according to a cron schedule.
     - [**HelloDynamic**](/core/src/main/java/io/temporal/samples/hello/HelloDynamic.java): Demonstrates how to use `DynamicWorkflow` and `DynamicActivity` interfaces.
+    - [**HelloEagerWorkflowStart**](/core/src/main/java/io/temporal/samples/hello/HelloEagerWorkflowStart.java): Demonstrates the use of a eager workflow start.
     - [**HelloPeriodic**](/core/src/main/java/io/temporal/samples/hello/HelloPeriodic.java): Demonstrates the use of the Continue-As-New feature.
     - [**HelloException**](/core/src/main/java/io/temporal/samples/hello/HelloException.java): Demonstrates how to handle exception propagation and wrapping.
     - [**HelloLocalActivity**](/core/src/main/java/io/temporal/samples/hello/HelloLocalActivity.java): Demonstrates the use of a [Local Activity](https://docs.temporal.io/docs/jargon/mesh/#local-activity).
@@ -75,6 +78,7 @@ See the README.md file in each main sample directory for cut/paste Gradle comman
     - [**HelloUpdate**](/core/src/main/java/io/temporal/samples/hello/HelloUpdate.java): Demonstrates how to create and interact with an Update.
     - [**HelloDelayedStart**](/core/src/main/java/io/temporal/samples/hello/HelloDelayedStart.java): Demonstrates how to use delayed start config option when starting a Workflow Executions.
     - [**HelloSignalWithTimer**](/core/src/main/java/io/temporal/samples/hello/HelloSignalWithTimer.java): Demonstrates how to use collect signals for certain amount of time and then process last one. 
+    - [**HelloWorkflowTimer**](/core/src/main/java/io/temporal/samples/hello/HelloWorkflowTimer.java): Demonstrates how we can use workflow timer to restrict duration of workflow execution instead of workflow run/execution timeouts.
 
 
 #### Scenario-based samples
@@ -83,11 +87,13 @@ See the README.md file in each main sample directory for cut/paste Gradle comman
 
 - [**Booking SAGA**](/core/src/main/java/io/temporal/samples/bookingsaga): Demonstrates Temporals take on the Camunda BPMN "trip booking" example.
 
+- [**Synchronous Booking SAGA**](/core/src/main/java/io/temporal/samples/bookingsyncsaga): Demonstrates low latency SAGA with potentially long compensations.
+
 - [**Money Transfer**](/core/src/main/java/io/temporal/samples/moneytransfer): Demonstrates the use of a dedicated Activity Worker.
 
 - [**Money Batch**](/core/src/main/java/io/temporal/samples/moneybatch): Demonstrates a situation where a single deposit should be initiated for multiple withdrawals. For example, a seller might want to be paid once per fixed number of transactions. This sample can be easily extended to perform a payment based on more complex criteria, such as at a specific time or an accumulated amount. The sample also demonstrates how to Signal the Workflow when it executes (*Signal with start*). If the Workflow is already executing, it just receives the Signal. If it is not executing, then the Workflow executes first, and then the Signal is delivered to it. *Signal with start* is a "lazy" way to execute Workflows when Signaling them.
 
-- [**Customer Application Approval DSL**](/core/src/main/java/io/temporal/samples/dsl): Demonstrates execution of a customer application approval workflow defined in a DSL (like JSON or YAML)
+- [**Domain-Specific-Language - Define sequence of steps in JSON**](/core/src/main/java/io/temporal/samples/dsl): Demonstrates using domain specific language (DSL) defined in JSON to specify sequence of steps to be performed in our workflow.
 
 - [**Polling Services**](/core/src/main/java/io/temporal/samples/polling): Recommended implementation of an activity that needs to periodically poll an external resource waiting its successful completion
 
@@ -97,6 +103,8 @@ See the README.md file in each main sample directory for cut/paste Gradle comman
 
 - [**Sliding Window Batch**](/core/src/main/java/io/temporal/samples/batch/slidingwindow): A batch implementation that maintains a configured number of child workflows during processing.
 
+- [**Safe Message Passing**](/core/src/main/java/io/temporal/samples/safemessagepassing): Safely handling concurrent updates and signals messages.
+
 #### API demonstrations
 
 - [**Async Untyped Child Workflow**](/core/src/main/java/io/temporal/samples/asyncuntypedchild): Demonstrates how to invoke an untyped child workflow async, that can complete after parent workflow is already completed.
@@ -104,7 +112,7 @@ See the README.md file in each main sample directory for cut/paste Gradle comman
 - [**Updatable Timer**](/core/src/main/java/io/temporal/samples/updatabletimer): Demonstrates the use of a helper class which relies on `Workflow.await` to implement a blocking sleep that can be updated at any moment.
 
 - [**Workflow Count Interceptor**](/core/src/main/java/io/temporal/samples/countinterceptor): Demonstrates how to create and register a simple Workflow Count Interceptor.
--
+
 - [**Workflow Retry On Signal Interceptor**](/core/src/main/java/io/temporal/samples/retryonsignalinterceptor): Demonstrates how to create and register an interceptor that retries an activity on a signal.
 
 - [**List Workflows**](/core/src/main/java/io/temporal/samples/listworkflows): Demonstrates the use of custom search attributes and ListWorkflowExecutionsRequest with custom queries.
@@ -125,6 +133,8 @@ See the README.md file in each main sample directory for cut/paste Gradle comman
 
 - [**Payload Codec**](/core/src/main/java/io/temporal/samples/encodefailures): Demonstrates how to use simple codec to encode/decode failure messages.
 
+- [**Exclude Workflow/ActivityTypes from Interceptors**](/core/src/main/java/io/temporal/samples/excludefrominterceptor): Demonstrates how to exclude certain workflow / activity types from interceptors.
+
 #### SDK Metrics
 
 - [**Set up SDK metrics**](/core/src/main/java/io/temporal/samples/metrics): Demonstrates how to set up and scrape SDK metrics.
@@ -133,6 +143,19 @@ See the README.md file in each main sample directory for cut/paste Gradle comman
 
 - [**Set up OpenTracing and/or OpenTelemetry with Jaeger**](/core/src/main/java/io/temporal/samples/tracing): Demonstrates how to set up OpenTracing and/or OpenTelemetry and view traces using Jaeger.
 
+#### Encryption Support
+
+- [**Encrypted Payloads**](/core/src/main/java/io/temporal/samples/encryptedpayloads): Demonstrates how to use simple codec to encrypt and decrypt payloads.
+
+- [**AWS Encryption SDK**](/core/src/main/java/io/temporal/samples/keymanagementencryption/awsencryptionsdk): Demonstrates how to use the AWS Encryption SDK to encrypt and decrypt payloads with AWS KMS.
+
+#### Nexus Samples
+
+- [**Getting Started**](/core/src/main/java/io/temporal/samples/nexus): Demonstrates how to get started with Temporal and Nexus.
+
+- [**Cancellation**](/core/src/main/java/io/temporal/samples/nexuscancellation): Demonstrates how to cancel an async Nexus operation.
+
+- [**Context/Header Propagation**](/core/src/main/java/io/temporal/samples/nexuscontextpropagation): Demonstrates how to propagate context through Nexus operation headers.
 
 <!-- @@@SNIPEND -->
 
@@ -161,6 +184,7 @@ More info on each sample:
 - [**Kafka Request / Reply**](/springboot/src/main/java/io/temporal/samples/springboot/kafka): Sample showing possible integration with event streaming platforms such as Kafka
 - [**Customize Options**](/springboot/src/main/java/io/temporal/samples/springboot/customize): Sample showing how to customize options such as WorkerOptions, WorkerFactoryOptions, etc (see options config [here](springboot/src/main/java/io/temporal/samples/springboot/customize/TemporalOptionsConfig.java))
 - [**Apache Camel Route**](/springboot/src/main/java/io/temporal/samples/springboot/camel): Sample showing how to start Workflow execution from a Camel Route
+- [**Custom Actuator Endpoint**](/springboot/src/main/java/io/temporal/samples/springboot/actuator): Sample showing how to create a custom Actuator endpoint that shows registered Workflow and Activity impls per task queue.
 
 #### Temporal Cloud
 To run any of the SpringBoot samples in your Temporal Cloud namespace:
