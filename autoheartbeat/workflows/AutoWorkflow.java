@@ -17,21 +17,17 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.autoheartbeat.activities;
+package io.temporal.samples.autoheartbeat.workflows;
 
-import io.temporal.activity.ActivityInterface;
+import io.temporal.workflow.SignalMethod;
+import io.temporal.workflow.WorkflowInterface;
+import io.temporal.workflow.WorkflowMethod;
 
-@ActivityInterface
-public interface AutoActivities {
-  String runActivityOne(String input);
+@WorkflowInterface
+public interface AutoWorkflow {
+  @WorkflowMethod
+  String exec(String input);
 
-  String runActivityTwo(String input);
-
-  String runActivityThree(String input);
-
-  String runActivityFour(String input);
-
-  String runActivityFifth(String input);
-
-  String runActivitySix(String input);
+  @SignalMethod
+  void cancelActivity();
 }

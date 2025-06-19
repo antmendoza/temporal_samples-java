@@ -17,21 +17,14 @@
  *  permissions and limitations under the License.
  */
 
-package io.temporal.samples.autoheartbeat.activities;
+package io.temporal.samples.autoheartbeat.interceptor;
 
-import io.temporal.activity.ActivityInterface;
+import io.temporal.common.interceptors.ActivityInboundCallsInterceptor;
+import io.temporal.common.interceptors.WorkerInterceptorBase;
 
-@ActivityInterface
-public interface AutoActivities {
-  String runActivityOne(String input);
-
-  String runActivityTwo(String input);
-
-  String runActivityThree(String input);
-
-  String runActivityFour(String input);
-
-  String runActivityFifth(String input);
-
-  String runActivitySix(String input);
+public class AutoHeartbeatWorkerInterceptor extends WorkerInterceptorBase {
+  @Override
+  public ActivityInboundCallsInterceptor interceptActivity(ActivityInboundCallsInterceptor next) {
+    return new AutoHeartbeatActivityInboundCallsInterceptor(next);
+  }
 }
