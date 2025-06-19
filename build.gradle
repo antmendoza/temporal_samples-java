@@ -1,5 +1,4 @@
 plugins {
-    id 'org.cadixdev.licenser' version '0.6.1'
     id "net.ltgt.errorprone" version "4.0.1"
     id 'com.diffplug.spotless' version '6.25.0' apply false
     id "org.springframework.boot" version "${springBootPluginVersion}"
@@ -7,7 +6,6 @@ plugins {
 
 subprojects {
     apply plugin: 'java'
-    apply plugin: 'org.cadixdev.licenser'
     apply plugin: 'net.ltgt.errorprone'
     apply plugin: 'com.diffplug.spotless'
 
@@ -28,7 +26,7 @@ subprojects {
     ext {
         otelVersion = '1.30.1'
         otelVersionAlpha = "${otelVersion}-alpha"
-        javaSDKVersion = '1.27.0'
+        javaSDKVersion = '1.28.1'
         camelVersion = '3.22.1'
         jarVersion = '1.0.0'
     }
@@ -42,15 +40,6 @@ subprojects {
 
     dependencies {
 
-    }
-
-    license {
-        header rootProject.file('license-header.txt')
-        exclude '**/*.json'
-        exclude '**/*.yaml'
-        exclude '**/*.yml'
-        exclude '**/*.html'
-        exclude '**/*.js'
     }
 
     apply plugin: 'com.diffplug.spotless'
